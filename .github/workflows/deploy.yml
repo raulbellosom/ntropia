@@ -10,10 +10,6 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: front
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,9 +21,11 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        working-directory: ./front
 
       - name: Build the app
         run: npm run build
+        working-directory: ./front
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
