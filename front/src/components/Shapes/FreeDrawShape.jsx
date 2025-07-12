@@ -1,54 +1,100 @@
-// src/components/Shapes/FreeDrawShape.jsx
-import React, { useRef } from "react";
-import { Line } from "react-konva";
-import { useCanvasStore } from "../../store/useCanvasStore";
+import React, { useRef, useEffect } from "react";
+import { Line, Transformer } from "react-konva";
 
 export default function FreeDrawShape({
   id,
   points,
   stroke,
   strokeWidth,
-  tension,
-  lineCap,
-  lineJoin,
-  onContextMenu, // <--- Agregado para el menú contextual
+  tension = 0.5,
+  lineCap = "round",
+  lineJoin = "round",
+  isSelected,
+  isInMultiSelection,
+  onSelect,
+  onUpdate, // A new prop to update the shape in the store
+  onDragEnd,
+  onContextMenu,
+  draggable = true,
+  listening = true,
 }) {
   const shapeRef = useRef();
-  const tool = useCanvasStore((s) => s.tool);
-  const setSelected = useCanvasStore((s) => s.setSelectedShape);
-  const updateShape = useCanvasStore((s) => s.updateShape);
+  const trRef = useRef();
 
-  const isSelectMode = tool === "select";
+  useEffect(() => {
+    if (isSelected && shapeRef.current && trRef.current) {
+      trRef.current.nodes([shapeRef.current]);
+      trRef.current.getLayer().batchDraw();
+    }
+  }, [isSelected]);
+
+  const handleTransformEnd = (e) => {
+    const node = shapeRef.current;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    const rotation = node.rotation();
+
+    if (scaleX === 0 || scaleY === 0) return;
+
+    const newPoints = node.points().map((point, i) => {
+      return i % 2 === 0 ? point * scaleX : point * scaleY;
+    });
+
+    node.scaleX(1);
+    node.scaleY(1);
+
+    onUpdate({
+      id,
+      props: {
+        points: newPoints,
+        x: node.x(),
+        y: node.y(),
+        rotation,
+      },
+    });
+  };
 
   return (
-    <Line
-      id={id}
-      ref={shapeRef}
-      points={points}
-      stroke={stroke}
-      strokeWidth={strokeWidth}
-      tension={tension}
-      lineCap={lineCap}
-      lineJoin={lineJoin}
-      draggable={isSelectMode}
-      onContextMenu={onContextMenu}
-      onClick={isSelectMode ? () => setSelected(id) : undefined}
-      onDragEnd={
-        isSelectMode
-          ? (e) => updateShape(id, { x: e.target.x(), y: e.target.y() })
-          : undefined
-      }
-      onTransformEnd={
-        isSelectMode
-          ? (e) => {
-              const node = shapeRef.current;
-              const newPoints = node.points();
-              updateShape(id, { points: newPoints });
-              node.scaleX(1);
-              node.scaleY(1);
+    <>
+      <Line
+        id={id}
+        ref={shapeRef}
+        points={points}
+        stroke={stroke}
+        strokeWidth={isInMultiSelection ? strokeWidth + 1 : strokeWidth}
+        tension={tension}
+        lineCap={lineCap}
+        lineJoin={lineJoin}
+        draggable={draggable && (isSelected || isInMultiSelection)}
+        listening={listening}
+        opacity={isInMultiSelection ? 0.8 : 1}
+        onClick={onSelect}
+        onTap={onSelect}
+        onContextMenu={onContextMenu}
+        onDragEnd={onDragEnd}
+        onTransformEnd={handleTransformEnd}
+        onMouseEnter={(e) => {
+          const stage = e.target.getStage();
+          stage.container().style.cursor = "move";
+        }}
+        onMouseLeave={(e) => {
+          const stage = e.target.getStage();
+          stage.container().style.cursor = "default";
+        }}
+      />
+
+      {isSelected && (
+        <Transformer
+          ref={trRef}
+          rotateEnabled={true}
+          boundBoxFunc={(oldBox, newBox) => {
+            if (Math.abs(newBox.width) < 10 || Math.abs(newBox.height) < 10) {
+              return oldBox;
             }
-          : undefined
-      }
-    />
+            return newBox;
+          }}
+        />
+      )}
+    </>
   );
 }

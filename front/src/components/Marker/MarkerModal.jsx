@@ -6,12 +6,10 @@ import { useDropzone } from "react-dropzone";
 import IconColorPicker from "../common/IconColorPicker";
 import { Droplet } from "lucide-react";
 
-export default function MarkerModal() {
-  const selectedId = useCanvasStore((state) => state.selectedShapeId);
+export default function MarkerModal({ shapeId, onClose }) {
   const updateShape = useCanvasStore((state) => state.updateShape);
-  const deselectShape = useCanvasStore((state) => state.setSelectedShape);
   const shapes = useCanvasStore((state) => state.shapes);
-  const marker = shapes.find((s) => s.id === selectedId && s.type === "marker");
+  const marker = shapes.find((s) => s.id === shapeId && s.type === "marker");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -40,7 +38,7 @@ export default function MarkerModal() {
   const { getRootProps, getInputProps } = useDropzone({ onDrop });
 
   const save = () => {
-    updateShape(selectedId, {
+    updateShape(shapeId, {
       props: {
         ...marker.props,
         title,
@@ -49,7 +47,7 @@ export default function MarkerModal() {
         color: markerColor,
       },
     });
-    deselectShape(null);
+    onClose();
   };
 
   if (!marker) return null;
@@ -57,7 +55,7 @@ export default function MarkerModal() {
   return (
     <ModalWrapper
       isOpen={Boolean(marker)}
-      onClose={() => deselectShape(null)}
+      onClose={onClose}
       title="Editar Marcador"
     >
       <div className="space-y-4">
@@ -111,10 +109,7 @@ export default function MarkerModal() {
         </div>
 
         <div className="mt-6 flex justify-end space-x-2">
-          <button
-            onClick={() => deselectShape(null)}
-            className="px-4 py-2 bg-gray-200 rounded"
-          >
+          <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded">
             Cancelar
           </button>
           <button

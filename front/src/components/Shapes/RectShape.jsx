@@ -12,8 +12,10 @@ export default function RectShape({
   fill = "transparent",
   strokeWidth = 2,
   isSelected,
+  isInMultiSelection,
   onSelect,
   onTransformEnd,
+  onDragEnd,
   rotation,
   onDoubleClick,
   onContextMenu,
@@ -40,14 +42,15 @@ export default function RectShape({
         height={height}
         stroke={stroke}
         fill={fill}
-        strokeWidth={strokeWidth}
-        draggable={isSelected}
+        strokeWidth={isInMultiSelection ? strokeWidth + 1 : strokeWidth}
+        draggable={isSelected || isInMultiSelection}
         rotation={rotation || 0}
+        opacity={isInMultiSelection ? 0.8 : 1}
         onClick={onSelect}
         onTap={onSelect}
-        onDblClick={onDoubleClick} // <--- Agregado
-        onDblTap={onDoubleClick} // <--- Mobile
-        onDragEnd={onTransformEnd}
+        onDblClick={onDoubleClick}
+        onDblTap={onDoubleClick}
+        onDragEnd={onDragEnd || onTransformEnd}
         onTransformEnd={onTransformEnd}
         onContextMenu={onContextMenu}
         onMouseEnter={(e) => {

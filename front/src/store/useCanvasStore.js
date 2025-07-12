@@ -13,6 +13,7 @@ export const useCanvasStore = create((set, get) => ({
   // ---- Estado base ----
   tool: "select",
   selectedShapeId: null,
+  selectedShapeIds: [], // Para selección múltiple
   zoom: 1,
   pan: { x: 0, y: 0 },
   gridEnabled: true,
@@ -90,7 +91,49 @@ export const useCanvasStore = create((set, get) => ({
   // ---- Métodos canvas ----
   setTool: (tool) => set({ tool }),
   setSelectedShape: (id) => {
-    if (get().selectedShapeId !== id) set({ selectedShapeId: id });
+    if (get().selectedShapeId !== id)
+      set({ selectedShapeId: id, selectedShapeIds: id ? [id] : [] });
+  },
+
+  // Métodos para selección múltiple
+  addToSelection: (id) => {
+    const current = get().selectedShapeIds;
+    if (!current.includes(id)) {
+      const newSelection = [...current, id];
+      set({
+        selectedShapeIds: newSelection,
+        selectedShapeId: newSelection.length === 1 ? newSelection[0] : null,
+      });
+    }
+  },
+
+  removeFromSelection: (id) => {
+    const current = get().selectedShapeIds;
+    const newSelection = current.filter((shapeId) => shapeId !== id);
+    set({
+      selectedShapeIds: newSelection,
+      selectedShapeId: newSelection.length === 1 ? newSelection[0] : null,
+    });
+  },
+
+  toggleSelection: (id) => {
+    const current = get().selectedShapeIds;
+    if (current.includes(id)) {
+      get().removeFromSelection(id);
+    } else {
+      get().addToSelection(id);
+    }
+  },
+
+  clearSelection: () => {
+    set({ selectedShapeId: null, selectedShapeIds: [] });
+  },
+
+  setMultipleSelection: (ids) => {
+    set({
+      selectedShapeIds: ids,
+      selectedShapeId: ids.length === 1 ? ids[0] : null,
+    });
   },
 
   setZoom: (zoom) => set({ zoom }),
@@ -203,7 +246,24 @@ export const useCanvasStore = create((set, get) => ({
     get().saveToHistory();
     set((state) => ({
       shapes: state.shapes.filter((s) => s.id !== id),
+      selectedShapeIds: state.selectedShapeIds.filter(
+        (shapeId) => shapeId !== id
+      ),
+      selectedShapeId:
+        state.selectedShapeId === id ? null : state.selectedShapeId,
     }));
+  },
+
+  removeSelectedShapes: () => {
+    const { selectedShapeIds } = get();
+    if (selectedShapeIds.length > 0) {
+      get().saveToHistory();
+      set((state) => ({
+        shapes: state.shapes.filter((s) => !selectedShapeIds.includes(s.id)),
+        selectedShapeIds: [],
+        selectedShapeId: null,
+      }));
+    }
   },
 
   bringShapeToFront: (id) => {

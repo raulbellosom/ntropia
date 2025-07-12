@@ -1,6 +1,6 @@
 // src/components/Canvas/CanvasStage.jsx
 import React, { useRef, useState, useEffect } from "react";
-import { Stage, Layer, Rect, Group } from "react-konva";
+import { Stage, Layer, Rect, Group, Transformer } from "react-konva";
 import { useCanvasStore } from "../../store/useCanvasStore";
 import useZoomPan from "../../hooks/useZoomPan";
 import Grid from "./Grid";
@@ -16,6 +16,7 @@ import {
   CANVAS_HEIGHT,
   GRID_CELL_SIZE,
 } from "../../utils/constants";
+import MarkerModal from "../Marker/MarkerModal";
 
 export default function CanvasStage() {
   const containerRef = useRef(null);
@@ -24,11 +25,11 @@ export default function CanvasStage() {
   const fileInputRef = useRef(null);
 
   const [dims, setDims] = useState({ width: 0, height: 0 });
-  const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
   const [autoEditTextId, setAutoEditTextId] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
+  const [markerModalShapeId, setMarkerModalShapeId] = useState(null);
 
   const {
     zoom,
@@ -50,11 +51,21 @@ export default function CanvasStage() {
   } = useCanvasStore();
 
   const selectedShapeId = useCanvasStore((s) => s.selectedShapeId);
+  const selectedShapeIds = useCanvasStore((s) => s.selectedShapeIds);
+  const addToSelection = useCanvasStore((s) => s.addToSelection);
+  const removeFromSelection = useCanvasStore((s) => s.removeFromSelection);
+  const toggleSelection = useCanvasStore((s) => s.toggleSelection);
+  const clearSelection = useCanvasStore((s) => s.clearSelection);
+  const setMultipleSelection = useCanvasStore((s) => s.setMultipleSelection);
+  const removeSelectedShapes = useCanvasStore((s) => s.removeSelectedShapes);
   const saveToHistory = useCanvasStore((s) => s.saveToHistory);
   const removeShape = useCanvasStore((s) => s.removeShape);
   const copyShape = useCanvasStore((s) => s.copyShape);
   const pasteShape = useCanvasStore((s) => s.pasteShape);
   const toggleLayersPanel = useCanvasStore((s) => s.toggleLayersPanel);
+  const [selectBox, setSelectBox] = useState(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const multiSelectRef = useRef(null);
 
   const offset = {
     x: (dims.width - CANVAS_WIDTH) / 2,
@@ -79,31 +90,67 @@ export default function CanvasStage() {
   // Zoom con wheel + pan con drag (solo si tool='hand')
   useZoomPan(stageRef, { zoom, setZoom, pan, setPan, tool });
 
+  // Manejar transformer para selección múltiple
+  useEffect(() => {
+    if (!stageRef.current || !multiSelectRef.current) return;
+
+    if (selectedShapeIds.length > 1) {
+      // Obtener todos los nodos seleccionados
+      const nodes = selectedShapeIds
+        .map((id) => {
+          return stageRef.current.findOne(`#${id}`);
+        })
+        .filter((node) => node); // Filtrar nodos null/undefined
+
+      if (nodes.length > 1) {
+        multiSelectRef.current.nodes(nodes);
+        multiSelectRef.current.getLayer().batchDraw();
+      }
+    } else {
+      multiSelectRef.current.nodes([]);
+    }
+  }, [selectedShapeIds]);
+
   // Al cambiar a tool='image', abrimos selector
   useEffect(() => {
     if (tool === "image") {
-      fileInputRef.current.click();
+      fileInputRef.current?.click();
     }
   }, [tool]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedShapeId) {
-        removeShape(selectedShapeId);
+      // Verificar si estamos editando texto
+      if (
+        e.target.tagName === "INPUT" ||
+        e.target.isContentEditable ||
+        autoEditTextId !== null // Agregar esta condición
+      ) {
+        return; // No procesar atajos de teclado si estamos editando texto
+      }
+
+      if ((e.key === "Delete" || e.key === "Backspace") && tool === "select") {
+        if (selectedShapeIds.length > 0) {
+          removeSelectedShapes();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedShapeId, removeShape]);
+  }, [selectedShapeIds, removeSelectedShapes, tool, autoEditTextId]);
+
+  useEffect(() => {
+    if (
+      markerModalShapeId &&
+      !shapes.find((s) => s.id === markerModalShapeId)
+    ) {
+      setMarkerModalShapeId(null);
+    }
+  }, [shapes, markerModalShapeId]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (
-        e.target.tagName === "INPUT" ||
-        e.target.tagName === "TEXTAREA" ||
-        e.target.isContentEditable
-      )
-        return;
+      if (e.target.tagName === "INPUT" || e.target.isContentEditable) return;
 
       // Atajos con Ctrl/Meta (Cmd en Mac)
       if (e.ctrlKey || e.metaKey) {
@@ -124,7 +171,7 @@ export default function CanvasStage() {
       if (e.shiftKey && e.key.toLowerCase() === "l") {
         e.preventDefault();
         toggleLayersPanel();
-        setTool("select"); // Opcional: forzar herramienta en select como con el botón
+        useCanvasStore.getState().setTool("select");
         return;
       }
 
@@ -157,17 +204,13 @@ export default function CanvasStage() {
         case "h": // Hand
           useCanvasStore.getState().setTool("hand");
           break;
-        case "Escape": // Escape para salir de edición de texto
+        case "Escape": // Escape para salir de edición de texto o limpiar selección
           if (autoEditTextId) {
-            useCanvasStore.getState().setAutoEditTextId(null);
+            setAutoEditTextId(null);
+          } else if (selectedShapeIds.length > 0) {
+            clearSelection();
           }
           break;
-        case "Delete": // Delete para eliminar shape seleccionado
-          if (selectedShapeId) {
-            useCanvasStore.getState().removeShape(selectedShapeId);
-          }
-          break;
-        // quitar cuadriculado o grid
         case "g": // Toggle grid
           toggleGrid();
           break;
@@ -177,7 +220,16 @@ export default function CanvasStage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedShapeId, copyShape, pasteShape]);
+  }, [
+    selectedShapeId,
+    copyShape,
+    pasteShape,
+    autoEditTextId,
+    selectedShapeIds,
+    clearSelection,
+    toggleGrid,
+    toggleLayersPanel,
+  ]);
 
   // Carga de imagen con escalado automático
   const handleImageUpload = (e) => {
@@ -198,11 +250,12 @@ export default function CanvasStage() {
           w = w * scale;
           h = h * scale;
         }
-        // Usa el offset para colocar la imagen en la mesa de trabajo centrada
-        const pos = lastPointerPos || {
-          x: CANVAS_WIDTH / 2,
-          y: CANVAS_HEIGHT / 2,
+        // Coloca la imagen en el centro del canvas visible
+        const pos = {
+          x: CANVAS_WIDTH / 2 - w / 2,
+          y: CANVAS_HEIGHT / 2 - h / 2,
         };
+
         const id = addShape({
           layerId: activeLayerId,
           type: "image",
@@ -223,8 +276,89 @@ export default function CanvasStage() {
     saveToHistory();
   };
 
+  // Función auxiliar para obtener coordenadas del mouse en el canvas
+  const getCanvasPosition = () => {
+    if (!stageRef.current) return { x: 0, y: 0 };
+
+    const stage = stageRef.current;
+    const pointerPosition = stage.getPointerPosition();
+
+    if (!pointerPosition) return { x: 0, y: 0 };
+
+    // Obtener la transformación inversa del stage
+    const transform = stage.getAbsoluteTransform().copy();
+    transform.invert();
+
+    // Aplicar la transformación inversa
+    const pos = transform.point(pointerPosition);
+
+    // Ajustar por el offset del group
+    return {
+      x: pos.x - offset.x,
+      y: pos.y - offset.y,
+    };
+  };
+
+  // Función para detectar shapes en un área rectangular
+  const getShapesInArea = (x1, y1, x2, y2) => {
+    const left = Math.min(x1, x2);
+    const right = Math.max(x1, x2);
+    const top = Math.min(y1, y2);
+    const bottom = Math.max(y1, y2);
+
+    return shapes.filter((shape) => {
+      const props = shape.props;
+      let shapeLeft, shapeRight, shapeTop, shapeBottom;
+
+      switch (shape.type) {
+        case "rect":
+        case "image":
+        case "text":
+        case "marker":
+          shapeLeft = props.x;
+          shapeRight = props.x + props.width;
+          shapeTop = props.y;
+          shapeBottom = props.y + props.height;
+          break;
+        case "circle":
+          shapeLeft = props.x - props.radius;
+          shapeRight = props.x + props.radius;
+          shapeTop = props.y - props.radius;
+          shapeBottom = props.y + props.radius;
+          break;
+        case "line":
+        case "free":
+          if (props.points && props.points.length >= 2) {
+            const xPoints = props.points.filter((_, i) => i % 2 === 0);
+            const yPoints = props.points.filter((_, i) => i % 2 === 1);
+            shapeLeft = Math.min(...xPoints);
+            shapeRight = Math.max(...xPoints);
+            shapeTop = Math.min(...yPoints);
+            shapeBottom = Math.max(...yPoints);
+          } else {
+            return false;
+          }
+          break;
+        default:
+          return false;
+      }
+
+      return (
+        shapeRight >= left &&
+        shapeLeft <= right &&
+        shapeBottom >= top &&
+        shapeTop <= bottom
+      );
+    });
+  };
+
   // Deseleccionar al hacer click en el fondo (stage o rect de fondo)
   const handleStageMouseDown = (e) => {
+    // Ocultar menú contextual si está visible
+    if (contextMenu) {
+      setContextMenu(null);
+    }
+
     // Clases de shapes "interactivos"
     const SHAPE_CLASSES = [
       "Rect",
@@ -235,23 +369,41 @@ export default function CanvasStage() {
       "Path",
       "Star",
       "RegularPolygon",
-      "marker",
+      "Group", // Agregar Group para TextShape y MarkerIcon
     ];
 
-    if (
+    // Verificar si se hizo click en un shape
+    const clickedOnShape =
       e.target.getClassName &&
-      SHAPE_CLASSES.includes(e.target.getClassName())
-    ) {
+      (SHAPE_CLASSES.includes(e.target.getClassName()) ||
+        e.target.getParent()?.getClassName() === "Group"); // También verificar si el parent es un Group
+
+    if (clickedOnShape) {
       return;
     }
 
+    // Verificar si se hizo click en el fondo
     const isBackground =
       e.target === e.target.getStage() ||
       (e.target.id && e.target.id() === "background-rect");
 
     if (tool === "select") {
       if (isBackground) {
-        setSelectedShape(null);
+        // Click izquierdo en el fondo para empezar selección de área o limpiar selección
+        if (!e.evt.ctrlKey && !e.evt.metaKey) {
+          // Solo limpiar selección si no hay Ctrl presionado
+          clearSelection();
+
+          // Iniciar selección de área con click izquierdo + drag
+          setIsSelecting(true);
+          const pos = getCanvasPosition();
+          setSelectBox({
+            startX: pos.x,
+            startY: pos.y,
+            endX: pos.x,
+            endY: pos.y,
+          });
+        }
       }
       // NO llamar handleMouseDown en select
     } else {
@@ -262,13 +414,7 @@ export default function CanvasStage() {
   // Crear shapes en modos de dibujo
   const handleMouseDown = (e) => {
     setIsDrawing(true);
-    const posStage = stageRef.current.getPointerPosition();
-    const pos = {
-      x: (posStage.x - offset.x) / zoom,
-      y: (posStage.y - offset.y) / zoom,
-    };
-
-    setLastPointerPos(pos); // Para imágenes
+    const pos = getCanvasPosition();
 
     let shapeData = {};
     let id = null;
@@ -362,7 +508,7 @@ export default function CanvasStage() {
           props: {
             x: pos.x,
             y: pos.y,
-            color: "red", // o el color que prefieras
+            color: "red",
             title: "",
             description: "",
             images: [],
@@ -378,12 +524,20 @@ export default function CanvasStage() {
   };
 
   const handleMouseMove = (e) => {
+    const pos = getCanvasPosition();
+
+    // Manejo del rectángulo de selección
+    if (isSelecting && selectBox) {
+      setSelectBox((prev) => ({
+        ...prev,
+        endX: pos.x,
+        endY: pos.y,
+      }));
+      return;
+    }
+
+    // Manejo del dibujo normal
     if (!isDrawing || !currentId) return;
-    const posStage = stageRef.current.getPointerPosition();
-    const pos = {
-      x: (posStage.x - offset.x) / zoom,
-      y: (posStage.y - offset.y) / zoom,
-    };
 
     const shape = shapes.find((s) => s.id === currentId);
     if (!shape) return;
@@ -411,57 +565,181 @@ export default function CanvasStage() {
   };
 
   const handleMouseUp = () => {
-    setIsDrawing(false);
-    setCurrentId(null);
-    saveToHistory();
+    // Finalizar selección por área
+    if (isSelecting && selectBox) {
+      // Solo seleccionar si hubo un arrastre real (más de 5 píxeles)
+      const dragDistance =
+        Math.abs(selectBox.endX - selectBox.startX) +
+        Math.abs(selectBox.endY - selectBox.startY);
+
+      if (dragDistance > 5) {
+        const selectedShapes = getShapesInArea(
+          selectBox.startX,
+          selectBox.startY,
+          selectBox.endX,
+          selectBox.endY
+        );
+
+        if (selectedShapes.length > 0) {
+          setMultipleSelection(selectedShapes.map((s) => s.id));
+        }
+      }
+      // Si no hubo arrastre significativo, la selección ya se limpió en mouseDown
+
+      setIsSelecting(false);
+      setSelectBox(null);
+      return;
+    }
+
+    // Finalizar dibujo normal
+    if (isDrawing) {
+      setIsDrawing(false);
+      setCurrentId(null);
+      saveToHistory();
+    }
   };
 
   const handleDragEnd = (e) => {
     setPan({ x: e.target.x(), y: e.target.y() });
   };
 
-  // Al transformar/mover, actualizar el shape en el store
+  // Función simplificada para manejar transformaciones
   const handleTransformEnd = (e) => {
+    const node = e.target;
+
+    if (!node || typeof node.id !== "function") {
+      return;
+    }
+
+    const id = node.id();
+    const shape = shapes.find((s) => s.id === id);
+    if (!shape) return;
+
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    const rotation = node.rotation();
+    const x = node.x();
+    const y = node.y();
+
+    switch (shape.type) {
+      case "line":
+      case "free":
+        // Para líneas y free draw, transformar usando el rectángulo como guía
+        const oldBounds = {
+          x: shape.props.points.filter((_, i) => i % 2 === 0),
+          y: shape.props.points.filter((_, i) => i % 2 === 1),
+        };
+
+        const oldMinX = Math.min(...oldBounds.x);
+        const oldMaxX = Math.max(...oldBounds.x);
+        const oldMinY = Math.min(...oldBounds.y);
+        const oldMaxY = Math.max(...oldBounds.y);
+
+        const oldWidth = oldMaxX - oldMinX;
+        const oldHeight = oldMaxY - oldMinY;
+
+        const newWidth = node.width() * scaleX;
+        const newHeight = node.height() * scaleY;
+
+        const newPoints = [];
+        for (let i = 0; i < shape.props.points.length; i += 2) {
+          const px = shape.props.points[i];
+          const py = shape.props.points[i + 1];
+
+          // Normalizar a 0-1
+          const normalizedX = oldWidth > 0 ? (px - oldMinX) / oldWidth : 0;
+          const normalizedY = oldHeight > 0 ? (py - oldMinY) / oldHeight : 0;
+
+          // Escalar y posicionar
+          const newX = x + normalizedX * newWidth;
+          const newY = y + normalizedY * newHeight;
+
+          newPoints.push(newX, newY);
+        }
+
+        updateShape(id, { points: newPoints });
+
+        // Reset del rectángulo
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        node.x(0);
+        node.y(0);
+        break;
+
+      case "rect":
+      case "image":
+      case "marker":
+        const newAttrs = {
+          x: x,
+          y: y,
+          width: Math.max(5, node.width() * scaleX),
+          height: Math.max(5, node.height() * scaleY),
+          rotation: rotation,
+        };
+
+        updateShape(id, newAttrs);
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+
+      case "text":
+        const textAttrs = {
+          x: x,
+          y: y,
+          width: Math.max(50, node.width() * scaleX),
+          height: Math.max(20, node.height() * scaleY),
+          fontSize: Math.max(8, (shape.props.fontSize || 16) * scaleX),
+          rotation: rotation,
+        };
+
+        updateShape(id, textAttrs);
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+
+      case "circle":
+        updateShape(id, {
+          x: x,
+          y: y,
+          radius: Math.max(5, shape.props.radius * scaleX),
+          rotation: rotation,
+        });
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+
+      default:
+        break;
+    }
+
+    saveToHistory();
+  };
+
+  const handleShapeDragEnd = (e) => {
     const node = e.target;
     const id = node.id();
     const shape = shapes.find((s) => s.id === id);
     if (!shape) return;
 
-    // Estos métodos existen seguro
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
+    const newX = node.x();
+    const newY = node.y();
 
-    switch (shape.type) {
-      case "rect":
-      case "image":
-      case "text":
-        updateShape(id, {
-          x: node.x(),
-          y: node.y(),
-          width: Math.max(5, node.width() * scaleX),
-          height: Math.max(5, node.height() * scaleY),
-        });
-        break;
-      case "circle":
-        updateShape(id, {
-          x: node.x(),
-          y: node.y(),
-          radius: Math.max(5, shape.props.radius * scaleX),
-        });
-        break;
-      default:
-        break;
-    }
-
-    node.scaleX(1);
-    node.scaleY(1);
-
+    // Actualiza solo la posición de la figura arrastrada
+    updateShape(id, { x: newX, y: newY });
     saveToHistory();
   };
 
   const handleShapeDoubleClick = (id) => {
-    useCanvasStore.getState().setTool("select");
-    setSelectedShape(id);
+    const shape = shapes.find((s) => s.id === id);
+    if (shape?.type === "marker") {
+      setMarkerModalShapeId(id);
+    } else {
+      setSelectedShape(id);
+    }
   };
 
   return (
@@ -473,7 +751,7 @@ export default function CanvasStage() {
         type="file"
         accept="image/*"
         ref={fileInputRef}
-        style={{ display: "none" }}
+        style={{ display: "none", position: "absolute", left: "-9999px" }}
         onChange={handleImageUpload}
       />
 
@@ -483,8 +761,8 @@ export default function CanvasStage() {
         height={dims.height}
         scaleX={zoom}
         scaleY={zoom}
-        x={0}
-        y={0}
+        x={pan.x}
+        y={pan.y}
         draggable={tool === "hand"}
         onDragEnd={tool === "hand" ? handleDragEnd : undefined}
         style={{
@@ -492,9 +770,9 @@ export default function CanvasStage() {
             tool === "hand"
               ? "grab"
               : tool === "select"
-              ? selectedShapeId
-                ? "default"
-                : "pointer"
+              ? isSelecting
+                ? "crosshair"
+                : "default"
               : "crosshair",
         }}
         onMouseDown={handleStageMouseDown}
@@ -543,22 +821,27 @@ export default function CanvasStage() {
                     const props = {
                       id: s.id,
                       ...s.props,
-                      isSelected: s.id === selectedShapeId,
-                      onSelect: () => {
-                        if (
-                          tool === "select" &&
-                          s.id !== selectedShapeId &&
-                          !isLocked
-                        ) {
-                          setSelectedShape(s.id);
+                      isSelected:
+                        selectedShapeIds.includes(s.id) &&
+                        selectedShapeIds.length === 1,
+                      isInMultiSelection:
+                        selectedShapeIds.includes(s.id) &&
+                        selectedShapeIds.length > 1,
+                      onSelect: (e) => {
+                        if (tool === "select" && !isLocked) {
+                          if (e && (e.evt.ctrlKey || e.evt.metaKey)) {
+                            toggleSelection(s.id);
+                          } else {
+                            setSelectedShape(s.id);
+                          }
                         }
                       },
                       onTransformEnd: handleTransformEnd,
+                      onDragEnd: handleShapeDragEnd,
                       onDoubleClick: () => handleShapeDoubleClick(s.id),
-                      draggable: !isLocked,
+                      draggable: !isLocked && selectedShapeIds.includes(s.id),
                       listening: !isLocked,
                       isLocked,
-                      contextMenu,
                       onContextMenu: (e) => {
                         e.evt.preventDefault();
                         setContextMenu({
@@ -571,9 +854,21 @@ export default function CanvasStage() {
 
                     switch (s.type) {
                       case "free":
-                        return <FreeDrawShape key={s.id} {...props} />;
+                        return (
+                          <FreeDrawShape
+                            key={s.id}
+                            onUpdate={({ id, props }) => updateShape(id, props)}
+                            {...props}
+                          />
+                        );
                       case "line":
-                        return <LineShape key={s.id} {...props} />;
+                        return (
+                          <LineShape
+                            key={s.id}
+                            onUpdate={({ id, props }) => updateShape(id, props)}
+                            {...props}
+                          />
+                        );
                       case "rect":
                         return <RectShape key={s.id} {...props} />;
                       case "circle":
@@ -602,7 +897,49 @@ export default function CanvasStage() {
                 </Group>
               );
             })}
+
+            {/* Rectángulo de selección */}
+            {selectBox && (
+              <Rect
+                x={Math.min(selectBox.startX, selectBox.endX)}
+                y={Math.min(selectBox.startY, selectBox.endY)}
+                width={Math.abs(selectBox.endX - selectBox.startX)}
+                height={Math.abs(selectBox.endY - selectBox.startY)}
+                fill="rgba(173, 216, 230, 0.2)"
+                stroke="rgba(70, 130, 180, 0.8)"
+                strokeWidth={1}
+                dash={[2, 2]}
+                listening={false}
+              />
+            )}
           </Group>
+
+          {/* Transformer para selección múltiple */}
+          {selectedShapeIds.length > 1 && (
+            <Transformer
+              ref={multiSelectRef}
+              rotateEnabled={false} // Deshabilitar rotación para selección múltiple
+              enabledAnchors={[
+                "top-left",
+                "top-center",
+                "top-right",
+                "middle-right",
+                "bottom-right",
+                "bottom-center",
+                "bottom-left",
+                "middle-left",
+              ]}
+              boundBoxFunc={(oldBox, newBox) => {
+                if (
+                  Math.abs(newBox.width) < 10 ||
+                  Math.abs(newBox.height) < 10
+                ) {
+                  return oldBox;
+                }
+                return newBox;
+              }}
+            />
+          )}
         </Layer>
       </Stage>
       {contextMenu && (
@@ -647,8 +984,13 @@ export default function CanvasStage() {
           >
             Bajar
           </button>
-          {/* ... más acciones */}
         </div>
+      )}
+      {markerModalShapeId && (
+        <MarkerModal
+          shapeId={markerModalShapeId}
+          onClose={() => setMarkerModalShapeId(null)}
+        />
       )}
     </div>
   );

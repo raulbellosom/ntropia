@@ -1,4 +1,3 @@
-// src/components/Shapes/LineShape.jsx
 import React, { useRef, useEffect } from "react";
 import { Line, Transformer } from "react-konva";
 
@@ -11,10 +10,14 @@ export default function LineShape({
   lineCap = "round",
   lineJoin = "round",
   isSelected,
+  isInMultiSelection,
   onSelect,
-  onTransformEnd,
-  onDoubleClick, // <--- Agregado
-  onContextMenu, // <--- Agregado
+  onUpdate, // A new prop to update the shape in the store
+  onDragEnd,
+  onDoubleClick,
+  onContextMenu,
+  draggable = true,
+  listening = true,
 }) {
   const shapeRef = useRef();
   const trRef = useRef();
@@ -26,6 +29,46 @@ export default function LineShape({
     }
   }, [isSelected]);
 
+  const handleTransformEnd = (e) => {
+    const node = shapeRef.current;
+    if (!node) return;
+
+    // Obtenemos la matriz de transformación completa del nodo
+    const transform = node.getTransform();
+
+    const newPoints = [];
+    const originalPoints = node.points(); // Usamos los puntos del nodo de Konva
+
+    // Iteramos sobre los puntos originales en pares (x, y)
+    for (let i = 0; i < originalPoints.length; i += 2) {
+      const point = {
+        x: originalPoints[i],
+        y: originalPoints[i + 1],
+      };
+      // Aplicamos la transformación para obtener la nueva posición absoluta
+      const { x, y } = transform.point(point);
+      newPoints.push(x, y);
+    }
+
+    // Reseteamos todas las transformaciones del nodo, ya que ahora están "cocinadas" en los puntos.
+    node.position({ x: 0, y: 0 });
+    node.rotation(0);
+    node.scaleX(1);
+    node.scaleY(1);
+
+    // Actualizamos el estado global con los puntos en su posición y forma final.
+    // El 'x' y 'y' del shape ahora serán 0, porque la posición ya está en los puntos.
+    onUpdate({
+      id,
+      props: {
+        points: newPoints,
+        x: 0,
+        y: 0,
+        rotation: 0,
+      },
+    });
+  };
+
   return (
     <>
       <Line
@@ -33,30 +76,20 @@ export default function LineShape({
         ref={shapeRef}
         points={points}
         stroke={stroke}
-        strokeWidth={strokeWidth}
+        strokeWidth={isInMultiSelection ? strokeWidth + 1 : strokeWidth}
         tension={tension}
         lineCap={lineCap}
         lineJoin={lineJoin}
-        draggable={isSelected}
+        draggable={draggable && (isSelected || isInMultiSelection)}
+        listening={listening}
+        opacity={isInMultiSelection ? 0.8 : 1}
         onClick={onSelect}
         onTap={onSelect}
-        onDblClick={onDoubleClick} // <--- Agregado
-        onDblTap={onDoubleClick} // <--- Mobile
-        onDragEnd={onTransformEnd}
+        onDblClick={onDoubleClick}
+        onDblTap={onDoubleClick}
         onContextMenu={onContextMenu}
-        onTransformEnd={(e) => {
-          const node = shapeRef.current;
-          const newPoints = node.points();
-          onTransformEnd &&
-            onTransformEnd({
-              target: {
-                id,
-                points: () => newPoints,
-              },
-            });
-          node.scaleX(1);
-          node.scaleY(1);
-        }}
+        onDragEnd={onDragEnd}
+        onTransformEnd={handleTransformEnd}
         onMouseEnter={(e) => {
           const stage = e.target.getStage();
           stage.container().style.cursor = "move";
@@ -66,11 +99,11 @@ export default function LineShape({
           stage.container().style.cursor = "default";
         }}
       />
+
       {isSelected && (
         <Transformer
           ref={trRef}
-          enabledAnchors={["middle-left", "middle-right"]}
-          rotateEnabled={false}
+          rotateEnabled={true}
           boundBoxFunc={(oldBox, newBox) => {
             if (Math.abs(newBox.width) < 10 || Math.abs(newBox.height) < 10) {
               return oldBox;

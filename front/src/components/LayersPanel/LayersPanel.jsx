@@ -250,6 +250,10 @@ export default function LayersPanel() {
                       {objects.map((obj, idx) => (
                         <li
                           key={obj.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedShape(obj.id);
+                          }}
                           className={classNames(
                             "flex items-center group hover:bg-slate-700/50 rounded px-2 py-1 transition",
                             {
@@ -278,10 +282,6 @@ export default function LayersPanel() {
                                 "px-3 py-0.5 rounded text-xs truncate transition"
                               )}
                               title={obj.name || obj.type || obj.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedShape(obj.id);
-                              }}
                             >
                               {obj.name || obj.type || obj.id.slice(0, 8)}
                             </button>

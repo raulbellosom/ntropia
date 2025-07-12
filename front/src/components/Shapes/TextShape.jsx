@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { Text, Rect, Transformer } from "react-konva";
+import { Text, Rect, Transformer, Group } from "react-konva";
 import { Html } from "react-konva-utils";
 
 export default function TextShape({
@@ -9,46 +9,79 @@ export default function TextShape({
   text,
   fontSize,
   fontFamily,
-  fill, // <--- Este será el fondo/caja
-  stroke, // <--- Este será el color de la letra
+  fill, // fondo
+  stroke, // color de letra
   isSelected,
   onSelect,
   onTransformEnd,
   onChangeText,
   rotation,
   autoEdit,
-  onContextMenu, // <--- Agregado para el menú contextual
+  onContextMenu,
 }) {
-  const shapeRef = useRef();
+  const groupRef = useRef();
+  const textRef = useRef();
   const trRef = useRef();
   const [isEditing, setIsEditing] = useState(autoEdit || false);
   const [value, setValue] = useState(text);
-  const [textSize, setTextSize] = useState({ width: 100, height: 40 });
 
-  // Actualizar el texto local
+  // Actualizar texto local cuando cambie la prop
   useEffect(() => setValue(text), [text]);
   useEffect(() => {
     if (autoEdit) setIsEditing(true);
   }, [autoEdit]);
 
-  // Medir tamaño del texto para ajustar el fondo
+  // Usar Transformer sobre el Group, no sobre el <Text> individual
   useEffect(() => {
-    // Usar Konva para medir el texto
+    if (isSelected && trRef.current && groupRef.current && !isEditing) {
+      trRef.current.nodes([groupRef.current]);
+      trRef.current.getLayer().batchDraw();
+    }
+  }, [isSelected, isEditing]);
+
+  // Medir tamaño del texto para el rectángulo de fondo
+  const [textSize, setTextSize] = useState({ width: 100, height: 40 });
+  useEffect(() => {
+    // Medimos usando un canvas auxiliar
     const stage = document.createElement("canvas");
     const context = stage.getContext("2d");
     context.font = `${fontSize || 16}px ${fontFamily || "Arial"}`;
     const metrics = context.measureText(value);
-    const width = Math.max(metrics.width + 16, 80); // padding horizontal
-    const height = Math.max((fontSize || 16) + 16, 28); // padding vertical
+    const width = Math.max(metrics.width + 16, 80); // padding
+    const height = Math.max((fontSize || 16) + 16, 28); // padding
     setTextSize({ width, height });
   }, [value, fontSize, fontFamily]);
 
-  useEffect(() => {
-    if (isSelected && shapeRef.current && trRef.current && !isEditing) {
-      trRef.current.nodes([shapeRef.current]);
-      trRef.current.getLayer().batchDraw();
-    }
-  }, [isSelected, isEditing]);
+  // Cuando termina resize/rotate
+  const handleTransformEnd = (e) => {
+    const node = groupRef.current;
+    const textNode = textRef.current;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    const newFontSize = Math.max(8, (fontSize || 16) * scaleY); // Escalado vertical para fontSize
+    const newWidth = Math.max(50, textSize.width * scaleX);
+    const newHeight = Math.max(20, textSize.height * scaleY);
+
+    onTransformEnd &&
+      onTransformEnd({
+        target: {
+          id: () => id,
+          x: () => node.x(),
+          y: () => node.y(),
+          width: () => newWidth,
+          height: () => newHeight,
+          rotation: () => node.rotation(),
+          scaleX: () => 1,
+          scaleY: () => 1,
+          fontSize: () => newFontSize,
+        },
+      });
+
+    // Resetear transformaciones visuales para que la actualización sea visualmente correcta
+    node.scaleX(1);
+    node.scaleY(1);
+    node.rotation(0);
+  };
 
   const handleEditEnd = () => {
     setIsEditing(false);
@@ -59,54 +92,55 @@ export default function TextShape({
     <>
       {!isEditing ? (
         <>
-          {/* Rectángulo de fondo */}
-          <Rect
+          <Group
+            ref={groupRef}
             x={x}
             y={y}
-            width={textSize.width}
-            height={textSize.height}
-            fill={fill} // color de fondo
-            cornerRadius={6}
-            listening={false}
-          />
-          {/* Texto */}
-          <Text
-            id={id}
-            ref={shapeRef}
-            x={x + 8}
-            y={y + 8}
-            text={value}
-            fontSize={fontSize}
-            fontFamily={fontFamily}
-            fill={stroke} // color de letra
-            draggable={isSelected}
             rotation={rotation || 0}
+            draggable={isSelected}
             onClick={onSelect}
             onTap={onSelect}
             onDblClick={() => setIsEditing(true)}
             onDblTap={() => setIsEditing(true)}
             onDragEnd={onTransformEnd}
-            onTransformEnd={onTransformEnd}
             onContextMenu={onContextMenu}
-            onMouseEnter={(e) => {
-              const stage = e.target.getStage();
-              stage.container().style.cursor = "move";
-            }}
-            onMouseLeave={(e) => {
-              const stage = e.target.getStage();
-              stage.container().style.cursor = "default";
-            }}
-          />
+          >
+            {/* Rectángulo invisible para que Transformer pueda hacer resize */}
+            <Rect
+              width={textSize.width}
+              height={textSize.height}
+              fillEnabled={false}
+              strokeEnabled={false}
+              listening={true}
+              name="resize-box"
+            />
+            {/* Fondo visual */}
+            <Rect
+              width={textSize.width}
+              height={textSize.height}
+              fill={fill}
+              cornerRadius={6}
+              listening={false}
+            />
+            <Text
+              name="INPUT"
+              ref={textRef}
+              text={value}
+              fontSize={fontSize}
+              fontFamily={fontFamily}
+              fill={stroke}
+              width={textSize.width}
+              height={textSize.height}
+              align="left"
+              verticalAlign="middle"
+              onTransformEnd={handleTransformEnd}
+            />
+          </Group>
+
           {/* Transformer */}
-          {isSelected && (
+          {isSelected && !isEditing && (
             <Transformer
               ref={trRef}
-              enabledAnchors={[
-                "top-left",
-                "top-right",
-                "bottom-left",
-                "bottom-right",
-              ]}
               rotateEnabled={true}
               boundBoxFunc={(oldBox, newBox) => {
                 if (
@@ -123,6 +157,7 @@ export default function TextShape({
       ) : (
         <Html>
           <textarea
+            name="INPUT"
             autoFocus
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -138,8 +173,8 @@ export default function TextShape({
               transform: `translate(${x}px, ${y}px)`,
               fontSize,
               fontFamily,
-              color: stroke, // color letra
-              background: fill, // color fondo
+              color: stroke,
+              background: fill,
               border: "1px solid #aaa",
               padding: 4,
               borderRadius: 4,

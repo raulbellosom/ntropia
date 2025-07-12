@@ -10,8 +10,10 @@ export default function ImageShape({
   width,
   height,
   isSelected,
+  isInMultiSelection,
   onSelect,
   onTransformEnd,
+  onDragEnd,
   onDoubleClick,
   onContextMenu, // <--- Agregado para el menú contextual
 }) {
@@ -47,12 +49,13 @@ export default function ImageShape({
         y={y}
         width={width}
         height={height}
-        draggable={isSelected}
+        draggable={isSelected || isInMultiSelection}
+        opacity={isInMultiSelection ? 0.8 : 1}
         onClick={onSelect}
         onTap={onSelect}
         onDblClick={onDoubleClick} // <--- Agregado
         onDblTap={onDoubleClick} // <--- Mobile
-        onDragEnd={onTransformEnd}
+        onDragEnd={onDragEnd || onTransformEnd}
         onContextMenu={onContextMenu}
         onTransformEnd={onTransformEnd}
         onMouseEnter={(e) => {

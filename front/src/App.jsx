@@ -23,7 +23,7 @@ export default function App() {
       </div>
 
       {/* Modal de marcador (se muestra cuando selectedShapeId es de tipo 'marker') */}
-      <MarkerModal />
+      {/* <MarkerModal /> */}
     </div>
   );
 }
