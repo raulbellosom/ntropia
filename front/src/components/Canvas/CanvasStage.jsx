@@ -67,6 +67,7 @@ export default function CanvasStage() {
   const [selectBox, setSelectBox] = useState(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const multiSelectRef = useRef(null);
+  useZoomPan(stageRef, { zoom, setZoom, pan, setPan, tool });
 
   const offset = {
     x: (dims.width - CANVAS_WIDTH) / 2,
@@ -88,8 +89,26 @@ export default function CanvasStage() {
     return () => window.removeEventListener("resize", measure);
   }, [setPan, setZoom]);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    // Prevenir overscroll (solo en móvil)
+    const prevent = (e) => {
+      // Solo bloquea si el evento es dentro del canvas
+      // Puedes filtrar por tool, por si solo quieres en modo "dibujo"
+      e.preventDefault();
+    };
+
+    // Solo dispositivos touch
+    el.addEventListener("touchmove", prevent, { passive: false });
+
+    return () => {
+      el.removeEventListener("touchmove", prevent);
+    };
+  }, []);
+
   // Zoom con wheel + pan con drag (solo si tool='hand')
-  useZoomPan(stageRef, { zoom, setZoom, pan, setPan, tool });
 
   // Manejar transformer para selección múltiple
   useEffect(() => {

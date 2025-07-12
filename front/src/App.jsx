@@ -3,7 +3,6 @@ import React from "react";
 import Toolbar from "./components/Toolbar/Toolbar";
 import LayersPanel from "./components/LayersPanel/LayersPanel";
 import CanvasStage from "./components/Canvas/CanvasStage";
-import MarkerModal from "./components/Marker/MarkerModal";
 import ToolbarControls from "./components/Toolbar/ToolbarControls";
 
 export default function App() {
@@ -21,9 +20,6 @@ export default function App() {
         {/* Canvas con zoom, pan y shapes */}
         <CanvasStage />
       </div>
-
-      {/* Modal de marcador (se muestra cuando selectedShapeId es de tipo 'marker') */}
-      {/* <MarkerModal /> */}
     </div>
   );
 }
