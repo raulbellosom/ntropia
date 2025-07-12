@@ -8,7 +8,7 @@ import ToolbarControls from "./components/Toolbar/ToolbarControls";
 
 export default function App() {
   return (
-    <div className="h-screen flex flex-col relative">
+    <div className="h-[100dvh] flex flex-col relative">
       {/* Barra superior de herramientas */}
       <Toolbar />
       <ToolbarControls />
