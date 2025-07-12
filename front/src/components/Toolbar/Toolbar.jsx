@@ -16,18 +16,19 @@ import {
   Copy,
   Clipboard,
   PaintBucket,
+  ArrowRight,
 } from "lucide-react";
 import { useCanvasStore } from "../../store/useCanvasStore";
 import IconColorPicker from "../common/IconColorPicker";
 import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
-import { getShapeColorForPicker } from "../../utils/color";
 
 const tools = [
   { name: "select", icon: SelectIcon, title: "Seleccionar (V)" },
   { name: "hand", icon: HandIcon, title: "Mano (Pan)" },
   { name: "free", icon: FreeIcon, title: "Dibujo libre" },
   { name: "line", icon: LineIcon, title: "Línea (L)" },
+  { name: "arrow", icon: ArrowRight, title: "Flecha (A)" },
   { name: "rect", icon: RectIcon, title: "Rectángulo (R)" },
   { name: "circle", icon: CircleIcon, title: "Círculo (C)" },
   { name: "text", icon: TextIcon, title: "Texto (T)" },

@@ -11,6 +11,7 @@ import LineShape from "../Shapes/LineShape";
 import TextShape from "../Shapes/TextShape";
 import ImageShape from "../Shapes/ImageShape";
 import MarkerIcon from "../Marker/MarkerIcon";
+import ArrowShape from "../Shapes/ArrowShape";
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
@@ -150,7 +151,15 @@ export default function CanvasStage() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.target.tagName === "INPUT" || e.target.isContentEditable) return;
+      if (
+        e.target.tagName === "INPUT" ||
+        e.target.isContentEditable ||
+        autoEditTextId // <-- flag de edición de texto, asegúrate de que es true/false o id
+      ) {
+        return;
+      }
+
+      if (isEditing) return;
 
       // Atajos con Ctrl/Meta (Cmd en Mac)
       if (e.ctrlKey || e.metaKey) {
@@ -177,6 +186,9 @@ export default function CanvasStage() {
 
       // Atajos de cambio de herramienta (sin Ctrl)
       switch (e.key) {
+        case "a": // Arrow
+          useCanvasStore.getState().setTool("arrow");
+          break;
         case "v": // Select
           useCanvasStore.getState().setTool("select");
           break;
@@ -433,7 +445,22 @@ export default function CanvasStage() {
         id = addShape(shapeData);
         setCurrentId(id);
         break;
-
+      case "arrow":
+        shapeData = {
+          layerId: activeLayerId,
+          type: "arrow",
+          props: {
+            points: [pos.x, pos.y, pos.x, pos.y], // inicia como línea
+            stroke: strokeColor || "black",
+            fill: strokeColor || "black",
+            strokeWidth: 4,
+            pointerLength: 20,
+            pointerWidth: 20,
+          },
+        };
+        id = addShape(shapeData);
+        setCurrentId(id);
+        break;
       case "rect":
         shapeData = {
           layerId: activeLayerId,
@@ -550,6 +577,11 @@ export default function CanvasStage() {
       case "line":
         updateShape(currentId, {
           points: [points[0], points[1], pos.x, pos.y],
+        });
+        break;
+      case "arrow":
+        updateShape(currentId, {
+          points: [points[0], points[1], pos.x, pos.y], // solo mueve el final
         });
         break;
       case "rect":
@@ -869,6 +901,8 @@ export default function CanvasStage() {
                             {...props}
                           />
                         );
+                      case "arrow":
+                        return <ArrowShape key={s.id} {...props} />;
                       case "rect":
                         return <RectShape key={s.id} {...props} />;
                       case "circle":

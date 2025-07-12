@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+/* ===== Scrollbar custom ===== */
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #223046; /* azul oscuro tipo slate-800 */
+  border-radius: 8px;
+  min-height: 40px;
+  border: 2px solid transparent; /* Espacio para el efecto de padding */
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3360a3; /* azul vibrante al hacer hover */
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Opcional: para Firefox */
+* {
+  scrollbar-color: #223046 #111827; /* thumb, track */
+  scrollbar-width: thin;
+}

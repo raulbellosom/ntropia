@@ -351,7 +351,7 @@ export const useCanvasStore = create((set, get) => ({
   },
 
   // ---- Layers panel visibility ----
-  layersPanelVisible: true,
+  layersPanelVisible: false,
   showLayersPanel: () => set({ layersPanelVisible: true }),
   hideLayersPanel: () => set({ layersPanelVisible: false }),
   toggleLayersPanel: () =>

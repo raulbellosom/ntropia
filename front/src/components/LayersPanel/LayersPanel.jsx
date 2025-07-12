@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronDown as ChevronDownSolid,
+  X,
 } from "lucide-react";
 import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
@@ -58,17 +59,19 @@ export default function LayersPanel() {
 
   return (
     <div
-      className={classNames(
-        "fixed z-50 top-4 left-24 md:left-4 transition-all duration-300",
-        {
-          "pointer-events-none opacity-0 -translate-x-8": !layersPanelVisible,
-          "pointer-events-auto opacity-100 translate-x-0": layersPanelVisible,
-        }
-      )}
+      className={classNames("fixed z-50 transition-all duration-300", {
+        // Mobile: centrado siempre, con padding lateral y máximo ancho
+        "inset-x-0 mx-auto top-24": isMobile,
+        // Desktop: a la izquierda
+        "top-24 left-24 md:left-4": !isMobile,
+        "pointer-events-none opacity-0 -translate-x-8": !layersPanelVisible,
+        "pointer-events-auto opacity-100 translate-x-0": layersPanelVisible,
+      })}
       style={{
-        width: isMobile ? "90vw" : "20rem",
-        minWidth: isMobile ? 220 : 260,
-        maxWidth: 400,
+        width: isMobile ? "95vw" : "20rem",
+        minWidth: isMobile ? 160 : 260,
+        maxWidth: isMobile ? 350 : 400, // <= Limita más el ancho en móvil
+        ...(isMobile ? { bottom: "auto", right: "auto" } : {}),
       }}
     >
       <aside className="w-full bg-slate-900/95 text-white shadow-2xl p-4 rounded-2xl border border-blue-900 backdrop-blur-lg">
@@ -89,19 +92,31 @@ export default function LayersPanel() {
             </span>
             Capas
           </h2>
-          <button
-            onClick={() => {
-              const name = prompt("Nombre de la nueva capa:");
-              if (name && name.trim()) addLayer(name.trim());
-            }}
-            title="Agregar capa"
-            className="text-green-400 hover:text-green-300"
-          >
-            <PlusCircle size={22} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const name = prompt("Nombre de la nueva capa:");
+                if (name && name.trim()) addLayer(name.trim());
+              }}
+              title="Agregar capa"
+              className="text-green-400 hover:text-green-300"
+            >
+              <PlusCircle size={22} />
+            </button>
+            <button
+              onClick={() => useCanvasStore.getState().hideLayersPanel()}
+              title="Cerrar panel de capas"
+              className="ml-2 text-slate-400 hover:text-red-500 p-1 rounded transition"
+            >
+              <X size={22} />
+            </button>
+          </div>
         </div>
-        <div className="overflow-y-auto" style={{ maxHeight: "87dvh" }}>
-          <ul className="space-y-4">
+        <div
+          className="overflow-y-auto"
+          style={{ maxHeight: isMobile ? "55vh" : "78dvh" }}
+        >
+          <ul className={classNames("space-y-4", { "space-y-2": isMobile })}>
             {layers.map((layer, idx) => {
               const isActive = layer.id === activeLayerId;
               const objects = shapes.filter((s) => s.layerId === layer.id);

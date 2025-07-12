@@ -41,14 +41,17 @@ export default function TextShape({
 
   // Medir tamaño del texto para el rectángulo de fondo
   const [textSize, setTextSize] = useState({ width: 100, height: 40 });
+
   useEffect(() => {
-    // Medimos usando un canvas auxiliar
     const stage = document.createElement("canvas");
     const context = stage.getContext("2d");
     context.font = `${fontSize || 16}px ${fontFamily || "Arial"}`;
-    const metrics = context.measureText(value);
-    const width = Math.max(metrics.width + 16, 80); // padding
-    const height = Math.max((fontSize || 16) + 16, 28); // padding
+    const lines = value.split("\n");
+    const maxLineWidth = Math.max(
+      ...lines.map((line) => context.measureText(line).width)
+    );
+    const width = Math.max(maxLineWidth + 16, 80);
+    const height = Math.max(lines.length * (fontSize || 16) * 1.2 + 16, 28);
     setTextSize({ width, height });
   }, [value, fontSize, fontFamily]);
 
@@ -102,7 +105,23 @@ export default function TextShape({
             onTap={onSelect}
             onDblClick={() => setIsEditing(true)}
             onDblTap={() => setIsEditing(true)}
-            onDragEnd={onTransformEnd}
+            onDragEnd={(e) => {
+              const node = e.target;
+              onTransformEnd &&
+                onTransformEnd({
+                  target: {
+                    id: () => id,
+                    x: () => node.x(),
+                    y: () => node.y(),
+                    width: () => textSize.width,
+                    height: () => textSize.height,
+                    rotation: () => node.rotation(),
+                    scaleX: () => 1,
+                    scaleY: () => 1,
+                    fontSize: () => fontSize,
+                  },
+                });
+            }}
             onContextMenu={onContextMenu}
           >
             {/* Rectángulo invisible para que Transformer pueda hacer resize */}
@@ -160,7 +179,12 @@ export default function TextShape({
             name="INPUT"
             autoFocus
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              // Autoresize
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
+            }}
             onBlur={handleEditEnd}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) handleEditEnd();
@@ -181,11 +205,13 @@ export default function TextShape({
               resize: "none",
               minWidth: 80,
               minHeight: 28,
+              maxHeight: 300,
+              overflow: "auto",
               zIndex: 20,
               outline: "none",
               lineHeight: 1.2,
             }}
-            rows={2}
+            rows={3}
             spellCheck={false}
           />
         </Html>
