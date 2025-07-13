@@ -147,16 +147,7 @@ export default function CanvasStage() {
 
       if ((e.key === "Delete" || e.key === "Backspace") && tool === "select") {
         if (selectedShapeIds.length > 0) {
-          // Filtra solo shapes de capas desbloqueadas
-          const unlockedShapes = selectedShapeIds.filter((id) => {
-            const shape = shapes.find((s) => s.id === id);
-            const layer = layers.find((l) => l.id === shape?.layerId);
-            return layer && !layer.locked;
-          });
-          if (unlockedShapes.length > 0) {
-            useCanvasStore.getState().setMultipleSelection(unlockedShapes); // Corrige la selección antes
-            useCanvasStore.getState().removeSelectedShapes();
-          }
+          removeSelectedShapes();
         }
       }
     };
@@ -653,12 +644,7 @@ export default function CanvasStage() {
         });
 
         if (selectedShapes.length > 0) {
-          const filtered = selectedShapeIds.filter((id) => {
-            const shape = shapes.find((s) => s.id === id);
-            const layer = layers.find((l) => l.id === shape?.layerId);
-            return layer && !layer.locked;
-          });
-          setMultipleSelection(filtered);
+          setMultipleSelection(selectedShapes.map((s) => s.id));
         }
       }
       // Si no hubo arrastre significativo, la selección ya se limpió en mouseDown
@@ -697,6 +683,8 @@ export default function CanvasStage() {
     const rotation = node.rotation();
     const x = node.x();
     const y = node.y();
+
+    if (isLocked) return;
 
     switch (shape.type) {
       case "line":
