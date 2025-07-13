@@ -93,14 +93,10 @@ export default function CanvasStage() {
     const el = containerRef.current;
     if (!el) return;
 
-    // Prevenir overscroll (solo en móvil)
     const prevent = (e) => {
-      // Solo bloquea si el evento es dentro del canvas
-      // Puedes filtrar por tool, por si solo quieres en modo "dibujo"
       e.preventDefault();
     };
 
-    // Solo dispositivos touch
     el.addEventListener("touchmove", prevent, { passive: false });
 
     return () => {
@@ -829,6 +825,9 @@ export default function CanvasStage() {
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onTouchStart={handleStageMouseDown}
+        onTouchMove={handleMouseMove}
+        onTouchEnd={handleMouseUp}
       >
         <Layer>
           <Group x={offset.x} y={offset.y}>
