@@ -174,8 +174,6 @@ export default function CanvasStage() {
         return;
       }
 
-      if (isEditing) return;
-
       // Atajos con Ctrl/Meta (Cmd en Mac)
       if (e.ctrlKey || e.metaKey) {
         if (e.key.toLowerCase() === "c" && selectedShapeId) {
@@ -355,6 +353,7 @@ export default function CanvasStage() {
           break;
         case "line":
         case "free":
+        case "arrow":
           if (props.points && props.points.length >= 2) {
             const xPoints = props.points.filter((_, i) => i % 2 === 0);
             const yPoints = props.points.filter((_, i) => i % 2 === 1);

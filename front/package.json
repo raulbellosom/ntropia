@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
+    "@hello-pangea/dnd": "^18.0.1",
     "@tailwindcss/vite": "^4.1.11",
     "autoprefixer": "^10.4.21",
     "classnames": "^2.5.1",

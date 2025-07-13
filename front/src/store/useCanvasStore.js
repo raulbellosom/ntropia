@@ -9,6 +9,10 @@ import {
 
 const baseLayerId = generateId();
 
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 export const useCanvasStore = create((set, get) => ({
   // ---- Estado base ----
   tool: "select",
@@ -225,16 +229,28 @@ export const useCanvasStore = create((set, get) => ({
       ),
     }));
   },
+  renameLayer: (layerId, newName) =>
+    set((state) => ({
+      layers: state.layers.map((l) =>
+        l.id === layerId ? { ...l, name: newName } : l
+      ),
+    })),
 
   // ---- Shapes ----
   addShape: (shape) => {
     get().saveToHistory();
     const id = generateId();
+    // Busca cuántos existen ya de ese tipo (y capa si quieres)
+    const state = get();
+    const type = shape.type || "Shape";
+    const shapesOfType = state.shapes.filter((s) => s.type === type);
+    const newName = `${capitalize(type)} ${shapesOfType.length + 1}`;
     set((state) => ({
-      shapes: [...state.shapes, { id, ...shape }],
+      shapes: [...state.shapes, { id, ...shape, name: shape.name || newName }],
     }));
     return id;
   },
+
   updateShape: (id, newProps) => {
     set((state) => ({
       shapes: state.shapes.map((s) =>
@@ -349,6 +365,12 @@ export const useCanvasStore = create((set, get) => ({
       ),
     }));
   },
+  renameShape: (shapeId, newName) =>
+    set((state) => ({
+      shapes: state.shapes.map((s) =>
+        s.id === shapeId ? { ...s, name: newName } : s
+      ),
+    })),
 
   // ---- Layers panel visibility ----
   layersPanelVisible: false,

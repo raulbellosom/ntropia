@@ -1,10 +1,9 @@
-// src/components/Shapes/ArrowShape.jsx
 import React, { useRef, useEffect } from "react";
 import { Arrow, Transformer } from "react-konva";
 
 export default function ArrowShape({
   id,
-  points = [0, 0, 100, 100], // [x1, y1, x2, y2]
+  points = [0, 0, 100, 100],
   x = 0,
   y = 0,
   stroke = "#222",
@@ -16,16 +15,17 @@ export default function ArrowShape({
   draggable = true,
   rotation = 0,
   isSelected = false,
+  isInMultiSelection = false, // <- solo declara aquí
   onSelect,
   onDragEnd,
   onTransformEnd,
   onDoubleClick,
   onContextMenu,
+  listening = true,
 }) {
   const shapeRef = useRef();
   const trRef = useRef();
 
-  // Mostrar transformer si está seleccionado
   useEffect(() => {
     if (isSelected && shapeRef.current && trRef.current) {
       trRef.current.nodes([shapeRef.current]);
@@ -43,25 +43,35 @@ export default function ArrowShape({
         points={points}
         stroke={stroke}
         fill={fill}
-        strokeWidth={strokeWidth}
+        strokeWidth={isInMultiSelection ? strokeWidth + 1 : strokeWidth}
         pointerLength={pointerLength}
         pointerWidth={pointerWidth}
         tension={tension}
-        draggable={draggable}
+        draggable={draggable && (isSelected || isInMultiSelection)}
         rotation={rotation}
+        listening={listening}
+        opacity={isInMultiSelection ? 0.8 : 1}
         onClick={onSelect}
         onTap={onSelect}
         onDragEnd={onDragEnd}
         onTransformEnd={onTransformEnd}
         onDblClick={onDoubleClick}
         onContextMenu={onContextMenu}
+        onMouseEnter={(e) => {
+          const stage = e.target.getStage();
+          stage.container().style.cursor = "move";
+        }}
+        onMouseLeave={(e) => {
+          const stage = e.target.getStage();
+          stage.container().style.cursor = "default";
+        }}
       />
       {isSelected && (
         <Transformer
           ref={trRef}
           rotateEnabled={true}
           enabledAnchors={["middle-left", "middle-right"]}
-          boundBoxFunc={(oldBox, newBox) => newBox} // opcional, puedes limitar el resize aquí
+          boundBoxFunc={(oldBox, newBox) => newBox}
         />
       )}
     </>
