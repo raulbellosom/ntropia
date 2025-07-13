@@ -37,6 +37,7 @@ export default function LayersPanel() {
 
   // ---- HOOKS STORE ----
   const layers = useCanvasStore((state) => state.layers);
+
   const activeLayerId = useCanvasStore((state) => state.activeLayerId);
   const setActiveLayer = useCanvasStore((state) => state.setActiveLayer);
   const toggleLayerVisibility = useCanvasStore(
@@ -223,6 +224,7 @@ export default function LayersPanel() {
                     return (
                       <Draggable
                         draggableId={layer.id}
+                        isDragDisabled={layer.locked}
                         index={idx}
                         key={layer.id}
                       >
@@ -251,6 +253,18 @@ export default function LayersPanel() {
                                   setEditingId(layer.id);
                                   setEditingValue(layer.name);
                                 }}
+                                onTouchStart={(e) => {
+                                  let timeout = setTimeout(() => {
+                                    setEditingId(obj.id);
+                                    setEditingValue(
+                                      obj.name || obj.type || obj.id.slice(0, 8)
+                                    );
+                                  }, 500); // tap largo 500ms
+                                  e.target.ontouchend = () =>
+                                    clearTimeout(timeout);
+                                  e.target.ontouchmove = () =>
+                                    clearTimeout(timeout);
+                                }}
                               >
                                 {editingId === layer.id ? (
                                   <input
@@ -277,26 +291,30 @@ export default function LayersPanel() {
                               </span>
 
                               <div className="flex items-center gap-2 w-fit">
-                                <button
-                                  className="p-1 hover:bg-blue-800/40 rounded"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    moveLayerUp(layer.id);
-                                  }}
-                                  disabled={idx === 0}
-                                >
-                                  <ChevronUp size={16} />
-                                </button>
-                                <button
-                                  className="p-1 hover:bg-blue-800/40 rounded"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    moveLayerDown(layer.id);
-                                  }}
-                                  disabled={idx === layers.length - 1}
-                                >
-                                  <ChevronDown size={16} />
-                                </button>
+                                {!layer.locked && (
+                                  <>
+                                    <button
+                                      className="p-1 hover:bg-blue-800/40 rounded"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        moveLayerUp(layer.id);
+                                      }}
+                                      disabled={idx === 0}
+                                    >
+                                      <ChevronUp size={16} />
+                                    </button>
+                                    <button
+                                      className="p-1 hover:bg-blue-800/40 rounded"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        moveLayerDown(layer.id);
+                                      }}
+                                      disabled={idx === layers.length - 1}
+                                    >
+                                      <ChevronDown size={16} />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center justify-between mt-2">
@@ -329,22 +347,24 @@ export default function LayersPanel() {
                                 </button>
                               </div>
                               <div className="flex items-center gap-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (
-                                      window.confirm(
-                                        "¿Eliminar capa y todos sus objetos?"
-                                      )
-                                    ) {
-                                      removeLayer(layer.id);
-                                    }
-                                  }}
-                                  title="Eliminar capa"
-                                  className="ml-2 text-red-400 hover:text-red-600"
-                                >
-                                  <Trash2 size={17} />
-                                </button>
+                                {!layer.locked && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (
+                                        window.confirm(
+                                          "¿Eliminar capa y todos sus objetos?"
+                                        )
+                                      ) {
+                                        removeLayer(layer.id);
+                                      }
+                                    }}
+                                    title="Eliminar capa"
+                                    className="ml-2 text-red-400 hover:text-red-600"
+                                  >
+                                    <Trash2 size={17} />
+                                  </button>
+                                )}
                               </div>
                             </div>
                             <div className="mt-3 flex flex-col gap-2 text-xs opacity-80">
@@ -401,135 +421,177 @@ export default function LayersPanel() {
                                     {...dropProvided.droppableProps}
                                     className="ml-7 mt-2 space-y-1"
                                   >
-                                    {objects.map((obj, idx) => (
-                                      <Draggable
-                                        draggableId={obj.id}
-                                        index={idx}
-                                        key={obj.id}
-                                      >
-                                        {(objProvided) => (
-                                          <li
-                                            ref={objProvided.innerRef}
-                                            {...objProvided.draggableProps}
-                                            {...objProvided.dragHandleProps}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setSelectedShape(obj.id);
-                                            }}
-                                            className={classNames(
-                                              "flex items-center group  rounded px-2 py-1 transition",
-                                              {
-                                                "bg-blue-600 text-white font-bold shadow":
-                                                  selectedShapeIds.includes(
-                                                    obj.id
-                                                  ),
-                                                "hover:bg-blue-800":
-                                                  !selectedShapeIds.includes(
-                                                    obj.id
-                                                  ),
-                                              }
-                                            )}
-                                          >
-                                            <div className="flex-1 flex items-center gap-2 truncate">
-                                              <button
-                                                className="hover:text-blue-300 transition"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  toggleShapeVisibility(obj.id);
-                                                }}
-                                              >
-                                                {obj.visible !== false ? (
-                                                  <Eye size={15} />
-                                                ) : (
-                                                  <EyeOff size={15} />
-                                                )}
-                                              </button>
-                                              <span
-                                                className="text-xs truncate"
-                                                onDoubleClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setEditingId(obj.id);
-                                                  setEditingValue(
-                                                    obj.name ||
-                                                      obj.type ||
-                                                      obj.id.slice(0, 8)
-                                                  );
-                                                }}
-                                              >
-                                                {editingId === obj.id ? (
-                                                  <input
-                                                    autoFocus
-                                                    value={editingValue}
-                                                    onChange={(e) =>
-                                                      setEditingValue(
-                                                        e.target.value
-                                                      )
-                                                    }
-                                                    onBlur={() =>
-                                                      handleRenameShape(obj.id)
-                                                    }
-                                                    onKeyDown={(e) => {
-                                                      if (e.key === "Enter")
+                                    {objects.map((obj, idx) => {
+                                      const layer = layers.find(
+                                        (l) => l.id === obj.layerId
+                                      );
+                                      const isLocked = layer
+                                        ? layer.locked
+                                        : false;
+
+                                      return (
+                                        <Draggable
+                                          draggableId={obj.id}
+                                          isDragDisabled={layer.locked}
+                                          index={idx}
+                                          key={obj.id}
+                                        >
+                                          {(objProvided) => (
+                                            <li
+                                              ref={objProvided.innerRef}
+                                              {...objProvided.draggableProps}
+                                              {...objProvided.dragHandleProps}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedShape(obj.id);
+                                              }}
+                                              className={classNames(
+                                                "flex items-center group  rounded px-2 py-1 transition",
+                                                {
+                                                  "bg-blue-600 text-white font-bold shadow":
+                                                    selectedShapeIds.includes(
+                                                      obj.id
+                                                    ),
+                                                  "hover:bg-blue-800":
+                                                    !selectedShapeIds.includes(
+                                                      obj.id
+                                                    ),
+                                                }
+                                              )}
+                                            >
+                                              <div className="flex-1 flex items-center gap-2 truncate">
+                                                <button
+                                                  className="hover:text-blue-300 transition"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleShapeVisibility(
+                                                      obj.id
+                                                    );
+                                                  }}
+                                                >
+                                                  {obj.visible !== false ? (
+                                                    <Eye size={15} />
+                                                  ) : (
+                                                    <EyeOff size={15} />
+                                                  )}
+                                                </button>
+                                                <span
+                                                  className="text-xs truncate"
+                                                  onDoubleClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingId(obj.id);
+                                                    setEditingValue(
+                                                      obj.name ||
+                                                        obj.type ||
+                                                        obj.id.slice(0, 8)
+                                                    );
+                                                  }}
+                                                  onTouchStart={(e) => {
+                                                    let timeout = setTimeout(
+                                                      () => {
+                                                        setEditingId(obj.id);
+                                                        setEditingValue(
+                                                          obj.name ||
+                                                            obj.type ||
+                                                            obj.id.slice(0, 8)
+                                                        );
+                                                      },
+                                                      500
+                                                    ); // tap largo 500ms
+                                                    e.target.ontouchend = () =>
+                                                      clearTimeout(timeout);
+                                                    e.target.ontouchmove = () =>
+                                                      clearTimeout(timeout);
+                                                  }}
+                                                >
+                                                  {editingId === obj.id ? (
+                                                    <input
+                                                      autoFocus
+                                                      value={editingValue}
+                                                      onChange={(e) =>
+                                                        setEditingValue(
+                                                          e.target.value
+                                                        )
+                                                      }
+                                                      onBlur={() =>
                                                         handleRenameShape(
                                                           obj.id
-                                                        );
-                                                      if (e.key === "Escape") {
-                                                        setEditingId(null);
-                                                        setEditingValue("");
+                                                        )
                                                       }
-                                                    }}
-                                                    className="px-2 py-1 text-xs bg-slate-800 rounded text-white w-24"
-                                                    style={{
-                                                      minWidth: 60,
-                                                      maxWidth: 180,
-                                                    }}
-                                                  />
-                                                ) : (
-                                                  obj.name ||
-                                                  obj.type ||
-                                                  obj.id.slice(0, 8)
-                                                )}
-                                              </span>
-                                            </div>
-                                            <button
-                                              className="ml-2 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"
-                                              title="Subir"
-                                              onClick={() =>
-                                                useCanvasStore
-                                                  .getState()
-                                                  .bringShapeForward(obj.id)
-                                              }
-                                              disabled={
-                                                idx === objects.length - 1
-                                              }
-                                            >
-                                              <ChevronDown size={18} />
-                                            </button>
-                                            <button
-                                              className="ml-1 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"
-                                              title="Bajar"
-                                              onClick={() =>
-                                                useCanvasStore
-                                                  .getState()
-                                                  .sendShapeBackward(obj.id)
-                                              }
-                                              disabled={idx === 0}
-                                            >
-                                              <ChevronUp size={18} />
-                                            </button>
-                                            <button
-                                              className="ml-2 text-red-400 hover:text-red-600"
-                                              title="Eliminar elemento"
-                                              onClick={() =>
-                                                removeShape(obj.id)
-                                              }
-                                            >
-                                              <Trash2 size={18} />
-                                            </button>
-                                          </li>
-                                        )}
-                                      </Draggable>
-                                    ))}
+                                                      onKeyDown={(e) => {
+                                                        if (e.key === "Enter")
+                                                          handleRenameShape(
+                                                            obj.id
+                                                          );
+                                                        if (
+                                                          e.key === "Escape"
+                                                        ) {
+                                                          setEditingId(null);
+                                                          setEditingValue("");
+                                                        }
+                                                      }}
+                                                      className="px-2 py-1 text-xs bg-slate-800 rounded text-white w-24"
+                                                      style={{
+                                                        minWidth: 60,
+                                                        maxWidth: 180,
+                                                      }}
+                                                    />
+                                                  ) : (
+                                                    obj.name ||
+                                                    obj.type ||
+                                                    obj.id.slice(0, 8)
+                                                  )}
+                                                </span>
+                                              </div>
+                                              {!isLocked && (
+                                                <>
+                                                  <button
+                                                    className="ml-2 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"
+                                                    title="Subir"
+                                                    onClick={() =>
+                                                      useCanvasStore
+                                                        .getState()
+                                                        .bringShapeForward(
+                                                          obj.id
+                                                        )
+                                                    }
+                                                    disabled={
+                                                      idx === objects.length - 1
+                                                    }
+                                                  >
+                                                    <ChevronDown size={18} />
+                                                  </button>
+                                                  <button
+                                                    className="ml-1 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"
+                                                    title="Bajar"
+                                                    onClick={() =>
+                                                      useCanvasStore
+                                                        .getState()
+                                                        .sendShapeBackward(
+                                                          obj.id
+                                                        )
+                                                    }
+                                                    disabled={idx === 0}
+                                                  >
+                                                    <ChevronUp size={18} />
+                                                  </button>
+                                                  <button
+                                                    className="ml-2 text-red-400 hover:text-red-600"
+                                                    title="Eliminar elemento"
+                                                    onClick={() =>
+                                                      removeShape(obj.id)
+                                                    }
+                                                  >
+                                                    <Trash2 size={18} />
+                                                  </button>
+                                                </>
+                                              )}
+                                            </li>
+                                          )}
+                                        </Draggable>
+                                      );
+                                    })}
+
                                     {dropProvided.placeholder}
                                   </ul>
                                 )}

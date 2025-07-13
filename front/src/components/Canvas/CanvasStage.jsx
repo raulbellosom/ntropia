@@ -147,7 +147,16 @@ export default function CanvasStage() {
 
       if ((e.key === "Delete" || e.key === "Backspace") && tool === "select") {
         if (selectedShapeIds.length > 0) {
-          removeSelectedShapes();
+          // Filtra solo shapes de capas desbloqueadas
+          const unlockedShapes = selectedShapeIds.filter((id) => {
+            const shape = shapes.find((s) => s.id === id);
+            const layer = layers.find((l) => l.id === shape?.layerId);
+            return layer && !layer.locked;
+          });
+          if (unlockedShapes.length > 0) {
+            useCanvasStore.getState().setMultipleSelection(unlockedShapes); // Corrige la selección antes
+            useCanvasStore.getState().removeSelectedShapes();
+          }
         }
       }
     };
@@ -281,6 +290,12 @@ export default function CanvasStage() {
           y: CANVAS_HEIGHT / 2 - h / 2,
         };
 
+        const layer = layers.find((l) => l.id === activeLayerId);
+        if (layer && layer.locked) {
+          // Opcional: muestra mensaje/toast
+          return; // No permitir crear figura en capa bloqueada
+        }
+
         const id = addShape({
           layerId: activeLayerId,
           type: "image",
@@ -334,6 +349,9 @@ export default function CanvasStage() {
     return shapes.filter((shape) => {
       const props = shape.props;
       let shapeLeft, shapeRight, shapeTop, shapeBottom;
+
+      const layer = layers.find((l) => l.id === shape.layerId);
+      if (layer && layer.locked) return false;
 
       switch (shape.type) {
         case "rect":
@@ -439,6 +457,11 @@ export default function CanvasStage() {
 
   // Crear shapes en modos de dibujo
   const handleMouseDown = (e) => {
+    const layer = layers.find((l) => l.id === activeLayerId);
+    if (layer && layer.locked) {
+      // Opcional: muestra mensaje/toast
+      return; // No permitir crear figura en capa bloqueada
+    }
     setIsDrawing(true);
     const pos = getCanvasPosition();
 
@@ -624,10 +647,18 @@ export default function CanvasStage() {
           selectBox.startY,
           selectBox.endX,
           selectBox.endY
-        );
+        ).filter((s) => {
+          const layer = layers.find((l) => l.id === s.layerId);
+          return layer && !layer.locked;
+        });
 
         if (selectedShapes.length > 0) {
-          setMultipleSelection(selectedShapes.map((s) => s.id));
+          const filtered = selectedShapeIds.filter((id) => {
+            const shape = shapes.find((s) => s.id === id);
+            const layer = layers.find((l) => l.id === shape?.layerId);
+            return layer && !layer.locked;
+          });
+          setMultipleSelection(filtered);
         }
       }
       // Si no hubo arrastre significativo, la selección ya se limpió en mouseDown
