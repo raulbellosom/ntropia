@@ -14,6 +14,11 @@ import {
   X,
   Save,
   Undo2,
+  Facebook,
+  Instagram,
+  Twitter,
+  Coffee,
+  Banknote,
 } from "lucide-react";
 import classNames from "classnames";
 import IconColorPicker from "../common/IconColorPicker";
@@ -382,6 +387,61 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                 <br />
                 <br />
                 {/* Redes sociales */}
+                <p className="text-sm mb-2">
+                  Sígueme en redes sociales para más contenido y
+                  actualizaciones:
+                </p>
+                <span className="text-xs text-gray-500 flex gap-2">
+                  <a
+                    className="text-white rounded-full p-3 bg-blue-600 flex items-center justify-center"
+                    href="https://www.facebook.com/raul.bellosom"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Facebook size={16} className="inline" />
+                  </a>{" "}
+                  <a
+                    className="text-white rounded-full p-3 bg-fuchsia-400 flex items-center justify-center"
+                    href="https://www.instagram.com/raulbellosom/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Instagram size={16} className="inline" />
+                  </a>{" "}
+                  <a
+                    className="text-white rounded-full p-3 bg-black flex items-center justify-center"
+                    href="https://x.com/Raul_BellosoM"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Twitter size={16} className="inline" />
+                  </a>
+                </span>
+                {/* Donaciones */}
+                <p className="text-sm mt-4">
+                  Si te gusta este proyecto, considera hacer una donación para
+                  apoyar su desarrollo:
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <a
+                    href="https://www.paypal.com/donate/?hosted_button_id=Z3X5K6Y7V8W9U"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 rounded bg-blue-600 text-white font-semibold"
+                  >
+                    <Banknote className="w-5 h-5" />
+                    Donar con PayPal
+                  </a>
+                  <a
+                    href="https://ko-fi.com/raulbellosom"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 rounded bg-yellow-500 text-white font-semibold"
+                  >
+                    <Coffee className="w-5 h-5" />
+                    Donar con Ko-fi
+                  </a>
+                </div>
               </p>
             </div>
           )}
