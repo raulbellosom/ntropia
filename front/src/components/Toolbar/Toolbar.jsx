@@ -93,7 +93,7 @@ export default function Toolbar() {
     >
       <nav
         className={classNames(
-          "flex items-center gap-2 overflow-x-auto p-2 bg-blue-900/60 backdrop-blur-lg rounded-xl border border-slate-500/50 shadow-2xl",
+          "flex items-center gap-2 overflow-x-auto p-2 bg-blue-900/50 backdrop-blur-lg rounded-xl shadow-2xl",
           { "w-full": isMobile, "w-auto": !isMobile }
         )}
         style={{
@@ -132,10 +132,11 @@ export default function Toolbar() {
               title={title}
               onClick={() => setTool(name)}
               className={classNames(
-                "p-2 rounded transition-colors duration-150 flex-shrink-0",
+                "p-2 rounded transition-colors duration-200 flex-shrink-0",
                 {
-                  "bg-blue-100 text-black": tool === name,
-                  "text-white hover:bg-slate-500/90": tool !== name,
+                  "bg-blue-500/90 text-white": tool === name,
+                  "text-white hover:text-white hover:bg-blue-500/90":
+                    tool !== name,
                 }
               )}
             >
@@ -149,12 +150,11 @@ export default function Toolbar() {
           <div className="flex items-center gap-2">
             <button
               className={classNames(
-                "p-2 rounded transition-colors duration-150 flex-shrink-0",
+                "p-2 rounded transition-colors duration-200 flex-shrink-0",
                 {
-                  // si no hay shape seleccionado, el botón es azul claro
-                  "bg-blue-100 text-black": selectedShapeId,
-                  // si hay shape seleccionado, el botón es blanco con hover gris
-                  "text-white hover:bg-slate-500/90": !selectedShapeId,
+                  "bg-blue-500/90 text-white": selectedShapeId,
+                  "text-white hover:text-white hover:bg-blue-500/90":
+                    !selectedShapeId,
                 }
               )}
               title="Copiar elemento (Ctrl+C)"
@@ -165,10 +165,11 @@ export default function Toolbar() {
             </button>
             <button
               className={classNames(
-                "p-2 rounded transition-colors duration-150 flex-shrink-0",
+                "p-2 rounded transition-colors duration-200 flex-shrink-0",
                 {
-                  "bg-blue-100 text-black": clipboardShape,
-                  "text-white hover:bg-slate-500/90": !clipboardShape,
+                  "bg-blue-500/90 text-white": clipboardShape,
+                  "text-white hover:text-white hover:bg-blue-500/90":
+                    !clipboardShape,
                 }
               )}
               title="Pegar elemento (Ctrl+V)"
@@ -196,12 +197,12 @@ export default function Toolbar() {
               onChange={handleFillColorChange}
               label="Color de relleno"
             />
-            <IconColorPicker
+            {/* <IconColorPicker
               icon={BgIcon}
               color={backgroundColor}
               onChange={setBackgroundColor}
               label="Color de fondo"
-            />
+            /> */}
           </div>
         </div>
       </nav>

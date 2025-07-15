@@ -35,24 +35,22 @@ export default function IconColorPicker({
   useEffect(() => {
     if (open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
+      const pickerWidth = 225; // Aproximado, puedes ajustar si tu Picker es más ancho
+
+      let left = rect.left + window.scrollX;
+      // Si el picker se saldría del viewport, muévelo hacia la izquierda
+      if (left + pickerWidth > window.innerWidth - 8) {
+        left = Math.max(8, window.innerWidth - pickerWidth - 30);
+      }
       setCoords({
         top:
           pickerPlacement === "top"
             ? rect.top + window.scrollY - 320
             : rect.top + rect.height + window.scrollY + 8,
-        left: rect.left + window.scrollX,
+        left,
       });
     }
   }, [open, pickerPlacement]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e) => {
-      if (btnRef.current && !btnRef.current.contains(e.target)) setOpen(false);
-    };
-    window.addEventListener("mousedown", handleClick);
-    return () => window.removeEventListener("mousedown", handleClick);
-  }, [open]);
 
   const iconColor = getContrastYIQ(color);
 

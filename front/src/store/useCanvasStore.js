@@ -24,6 +24,7 @@ export const useCanvasStore = create((set, get) => ({
   strokeColor: DEFAULT_STROKE_COLOR,
   fillColor: DEFAULT_FILL_COLOR,
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
+  backgroundImage: null,
 
   layers: [
     { id: baseLayerId, name: "Base", visible: true, locked: false, opacity: 1 },
@@ -36,6 +37,10 @@ export const useCanvasStore = create((set, get) => ({
   // ---- Historial ----
   history: [],
   future: [],
+
+  // Tamaño del canvas
+  canvasWidth: 1200, // o el valor que quieras por defecto
+  canvasHeight: 900, // o el valor que quieras por defecto
 
   saveToHistory: () => {
     const { shapes, layers, backgroundColor, history } = get();
@@ -154,6 +159,14 @@ export const useCanvasStore = create((set, get) => ({
     get().saveToHistory();
     set({ backgroundColor: color });
   },
+  setBackgroundImage: (img) => set({ backgroundImage: img }),
+  clearBackgroundImage: () => set({ backgroundImage: null }),
+
+  setCanvasSize: ({ width, height }) =>
+    set({
+      canvasWidth: width,
+      canvasHeight: height,
+    }),
 
   // ---- Capas ----
   addLayer: (name) => {
@@ -355,6 +368,44 @@ export const useCanvasStore = create((set, get) => ({
         props: newProps,
       });
     }
+  },
+
+  replaceShape: (id) => {
+    const { clipboardShape, shapes, addShape, removeShape } = get();
+    if (!clipboardShape) return;
+    const target = shapes.find((s) => s.id === id);
+    if (!target) return;
+
+    // Nueva figura con props del clipboard, pero...
+    let newProps = { ...clipboardShape.props };
+    // drop id from clipboardShape
+    delete newProps.id;
+    // -- Mantén posición y medidas originales
+    newProps.x = target.props.x;
+    newProps.y = target.props.y;
+
+    // Tamaño
+    if ("width" in target.props) newProps.width = target.props.width;
+    if ("height" in target.props) newProps.height = target.props.height;
+    if ("radius" in target.props) newProps.radius = target.props.radius;
+    if ("points" in target.props) newProps.points = [...target.props.points];
+    if ("rotation" in target.props) newProps.rotation = target.props.rotation;
+    if ("scaleX" in target.props) newProps.scaleX = target.props.scaleX;
+    if ("scaleY" in target.props) newProps.scaleY = target.props.scaleY;
+
+    // Texto y nombre si aplica
+    const name = target.name || clipboardShape.name;
+    if ("text" in target.props) newProps.text = target.props.text;
+
+    // Elimina el shape original y agrega el nuevo (nuevo id, misma capa)
+    removeShape(id);
+    addShape({
+      id: generateId(), // nuevo id
+      ...clipboardShape,
+      layerId: target.layerId,
+      name,
+      props: newProps,
+    });
   },
 
   toggleShapeVisibility: (shapeId) => {

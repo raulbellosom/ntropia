@@ -1,5 +1,5 @@
 // src/components/Toolbar/ToolbarControls.jsx
-import React from "react";
+import React, { useState } from "react"; // ¡Agrega useState!
 import {
   ZoomIn,
   ZoomOut,
@@ -7,10 +7,13 @@ import {
   LocateFixed,
   Undo,
   Redo,
+  Layout as LayoutIcon,
+  Settings,
 } from "lucide-react";
 import { useCanvasStore } from "../../store/useCanvasStore";
 import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
+import SettingsMenuModal from "../Canvas/SettingsMenuModal";
 
 export default function ToolbarControls() {
   const { zoom, zoomIn, zoomOut, resetView, gridEnabled, toggleGrid } =
@@ -21,6 +24,8 @@ export default function ToolbarControls() {
 
   const isMobile = useMediaQuery({ maxWidth: 768 });
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   return (
     <div
       className={classNames(
@@ -30,7 +35,7 @@ export default function ToolbarControls() {
     >
       <nav
         className={classNames(
-          "flex items-center gap-2 p-2 bg-blue-900/70 backdrop-blur-lg rounded-xl border border-slate-500/50 shadow-2xl",
+          "flex items-center gap-2 overflow-x-auto p-2 bg-blue-900/50 backdrop-blur-lg rounded-xl shadow-2xl",
           { "w-auto": !isMobile }
         )}
         style={{
@@ -40,21 +45,21 @@ export default function ToolbarControls() {
         <button
           onClick={undo}
           title="Deshacer"
-          className="p-2 rounded transition-colors text-white hover:bg-slate-500/90"
+          className="p-2 rounded transition-colors text-white hover:bg-blue-500/90 duration-150"
         >
           <Undo size={20} />
         </button>
         <button
           onClick={redo}
           title="Rehacer"
-          className="p-2 rounded transition-colors text-white hover:bg-slate-500/90"
+          className="p-2 rounded transition-colors text-white hover:bg-blue-500/90 duration-150"
         >
           <Redo size={20} />
         </button>
         <button
           onClick={zoomOut}
           title="Alejar"
-          className="p-2 rounded text-white hover:bg-slate-500/90 transition-colors duration-150"
+          className="p-2 rounded transition-colors text-white hover:bg-blue-500/90 duration-150"
         >
           <ZoomOut size={20} />
         </button>
@@ -64,14 +69,14 @@ export default function ToolbarControls() {
         <button
           onClick={zoomIn}
           title="Acercar"
-          className="p-2 rounded text-white hover:bg-slate-500/90 transition-colors duration-150"
+          className="p-2 rounded text-white hover:bg-blue-500/90 transition-colors duration-150"
         >
           <ZoomIn size={20} />
         </button>
         <button
           onClick={resetView}
           title="Centrar vista"
-          className="p-2 rounded text-white hover:bg-slate-500/90 transition-colors duration-150"
+          className="p-2 rounded text-white hover:bg-blue-500/90 transition-colors duration-150"
         >
           <LocateFixed size={20} />
         </button>
@@ -80,12 +85,23 @@ export default function ToolbarControls() {
           title="Mostrar/Ocultar cuadrícula"
           className={classNames("p-2 rounded transition-colors duration-150", {
             "bg-blue-100 text-black": gridEnabled,
-            "text-white hover:bg-slate-500/90": !gridEnabled,
+            "text-white hover:bg-blue-500/90": !gridEnabled,
           })}
         >
           <GridIcon size={20} />
         </button>
+        <button
+          className="p-2 rounded text-white hover:bg-blue-500/90 transition-colors duration-150"
+          title="Configuración del lienzo"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Settings size={24} />
+        </button>
       </nav>
+      <SettingsMenuModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   );
 }
