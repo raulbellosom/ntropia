@@ -15,7 +15,9 @@ export default function ImageShape({
   onTransformEnd,
   onDragEnd,
   onDoubleClick,
-  onContextMenu, // <--- Agregado para el menú contextual
+  onContextMenu,
+  listening = true,
+  tool = "select",
 }) {
   const [image] = useImage(src);
   const shapeRef = React.useRef();
@@ -60,11 +62,19 @@ export default function ImageShape({
         onTransformEnd={onTransformEnd}
         onMouseEnter={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "move"; // o 'pointer'
+          if (listening) {
+            stage.container().style.cursor = "move";
+          }
         }}
         onMouseLeave={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "default";
+          const currentTool = tool || "select"; // Obtener tool del contexto
+          stage.container().style.cursor =
+            currentTool === "hand"
+              ? "grab"
+              : currentTool === "select"
+              ? "default"
+              : "crosshair";
         }}
       />
       {isSelected && (

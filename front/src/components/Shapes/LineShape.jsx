@@ -3,21 +3,26 @@ import { Line, Transformer } from "react-konva";
 
 export default function LineShape({
   id,
-  points,
+  points = [0, 0, 100, 100],
+  x = 0,
+  y = 0,
   stroke = "#000",
+  fill = "#000",
   strokeWidth = 2,
   tension = 0,
-  lineCap = "round",
-  lineJoin = "round",
-  isSelected,
-  isInMultiSelection,
+  draggable = true,
+  rotation = 0,
+  isSelected = false,
+  isInMultiSelection = false,
   onSelect,
-  onUpdate, // A new prop to update the shape in the store
   onDragEnd,
+  onTransformEnd,
   onDoubleClick,
   onContextMenu,
-  draggable = true,
   listening = true,
+  lineCap = "round",
+  lineJoin = "round",
+  tool = "select",
 }) {
   const shapeRef = useRef();
   const trRef = useRef();
@@ -29,74 +34,49 @@ export default function LineShape({
     }
   }, [isSelected]);
 
-  const handleTransformEnd = (e) => {
-    const node = shapeRef.current;
-    if (!node) return;
-
-    // Obtenemos la matriz de transformación completa del nodo
-    const transform = node.getTransform();
-
-    const newPoints = [];
-    const originalPoints = node.points(); // Usamos los puntos del nodo de Konva
-
-    // Iteramos sobre los puntos originales en pares (x, y)
-    for (let i = 0; i < originalPoints.length; i += 2) {
-      const point = {
-        x: originalPoints[i],
-        y: originalPoints[i + 1],
-      };
-      // Aplicamos la transformación para obtener la nueva posición absoluta
-      const { x, y } = transform.point(point);
-      newPoints.push(x, y);
-    }
-
-    // Reseteamos todas las transformaciones del nodo, ya que ahora están "cocinadas" en los puntos.
-    node.position({ x: 0, y: 0 });
-    node.rotation(0);
-    node.scaleX(1);
-    node.scaleY(1);
-
-    // Actualizamos el estado global con los puntos en su posición y forma final.
-    // El 'x' y 'y' del shape ahora serán 0, porque la posición ya está en los puntos.
-    onUpdate({
-      id,
-      props: {
-        points: newPoints,
-        x: 0,
-        y: 0,
-        rotation: 0,
-      },
-    });
-  };
+  // Asegurar que points es un array plano
+  const flatPoints = Array.isArray(points) ? points : [0, 0, 100, 100];
 
   return (
     <>
       <Line
         id={id}
         ref={shapeRef}
-        points={points}
+        x={x}
+        y={y}
+        points={flatPoints}
         stroke={stroke}
+        fill={fill}
         strokeWidth={isInMultiSelection ? strokeWidth + 1 : strokeWidth}
-        tension={tension}
         lineCap={lineCap}
         lineJoin={lineJoin}
+        tension={tension}
         draggable={draggable && (isSelected || isInMultiSelection)}
+        rotation={rotation}
         listening={listening}
         opacity={isInMultiSelection ? 0.8 : 1}
         onClick={onSelect}
         onTap={onSelect}
+        onDragEnd={onDragEnd}
+        onTransformEnd={onTransformEnd}
         onDblClick={onDoubleClick}
         onDblTap={onDoubleClick}
         onContextMenu={onContextMenu}
-        onDragEnd={onDragEnd}
-        onTransformEnd={handleTransformEnd}
         onMouseEnter={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "move";
+          if (listening) {
+            stage.container().style.cursor = "move";
+          }
         }}
         onMouseLeave={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "default";
+          const currentTool = tool || "select"; // Obtener tool del contexto
+          stage.container().style.cursor =
+            currentTool === "hand"
+              ? "grab"
+              : currentTool === "select"
+              ? "default"
+              : "crosshair";
         }}
       />
 
@@ -104,8 +84,19 @@ export default function LineShape({
         <Transformer
           ref={trRef}
           rotateEnabled={true}
+          enabledAnchors={[
+            "middle-left",
+            "middle-right",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+            "top-center",
+            "bottom-center",
+          ]}
           boundBoxFunc={(oldBox, newBox) => {
-            if (Math.abs(newBox.width) < 10 || Math.abs(newBox.height) < 10) {
+            // Evitar dimensiones muy pequeñas
+            if (Math.abs(newBox.width) < 10) {
               return oldBox;
             }
             return newBox;

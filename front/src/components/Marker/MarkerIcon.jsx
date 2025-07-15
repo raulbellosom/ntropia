@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import { Image, Transformer } from "react-konva";
+import { Image, Rect, Transformer } from "react-konva";
 import useImage from "use-image";
 import { useCanvasStore } from "../../store/useCanvasStore";
 
@@ -49,9 +49,7 @@ export default function MarkerIcon({
     // Regresa a coordenadas de canvas (antes de escalar)
     const newX = (visualX + size / 2) * zoom;
     const newY = (visualY + size) * zoom;
-    // Notifica al store o parent la posición real del marker
     if (onDragEnd) {
-      // Simula un evento similar a Konva
       onDragEnd({
         ...e,
         target: {
@@ -66,6 +64,21 @@ export default function MarkerIcon({
 
   return (
     <>
+      {/* Rect invisible para hit test y selección múltiple */}
+      <Rect
+        x={x - size / 2}
+        y={y - size}
+        width={size}
+        height={size}
+        fillEnabled={false}
+        strokeEnabled={false}
+        listening={true}
+        onClick={onSelect}
+        onTap={onSelect}
+        onContextMenu={onContextMenu}
+        onDblClick={onDoubleClick}
+        onDblTap={onDoubleClick}
+      />
       <Image
         id={id}
         ref={shapeRef}

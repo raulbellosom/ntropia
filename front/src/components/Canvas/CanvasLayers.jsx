@@ -29,20 +29,6 @@ export default function CanvasLayers({
   autoEditTextId,
   updateShape, // para FreeDrawShape y LineShape
 }) {
-  let longPressTimer = null;
-
-  const handleTouchStart = (e) => {
-    // Solo activa si tool === "select", así no interfiere al dibujar
-    if (tool !== "select" || isLocked) return;
-    longPressTimer = setTimeout(() => {
-      setContextMenu(e, s.id);
-    }, 420); // 420ms para UX rápida pero no accidental
-  };
-
-  const clearLongPress = () => {
-    clearTimeout(longPressTimer);
-  };
-
   return (
     <>
       {layers.map((layer) => {
@@ -60,10 +46,9 @@ export default function CanvasLayers({
             listening={!isLocked}
           >
             {shapesDeCapa.map((s) => {
-              const isShapeLocked = isLocked; // Necesario para closures
+              const isShapeLocked = isLocked;
               let longPressTimer = null;
 
-              // Handler de long-press (tap sostenido)
               const handleTouchStart = (e) => {
                 if (tool !== "select" || isShapeLocked) return;
                 longPressTimer = setTimeout(() => {
@@ -72,10 +57,10 @@ export default function CanvasLayers({
               };
               const clearLongPress = () => clearTimeout(longPressTimer);
 
-              // Todos los props para el shape
               const props = {
                 id: s.id,
                 ...s.props,
+                tool: tool, // Agregar esta línea
                 isSelected:
                   selectedShapeIds.includes(s.id) &&
                   selectedShapeIds.length === 1,
@@ -95,11 +80,14 @@ export default function CanvasLayers({
                 onDragEnd: handleShapeDragEnd,
                 onDoubleClick: () => handleShapeDoubleClick(s.id),
                 draggable: !isShapeLocked && selectedShapeIds.includes(s.id),
-                listening: !isShapeLocked,
+                // Solo escuchar eventos si la herramienta es select Y no está bloqueado
+                listening: tool === "select" && !isShapeLocked,
                 isLocked: isShapeLocked,
                 onContextMenu: (e) => {
-                  e.evt.preventDefault();
-                  setContextMenu(e, s.id);
+                  if (tool === "select") {
+                    e.evt.preventDefault();
+                    setContextMenu(e, s.id);
+                  }
                 },
                 onTouchStart: handleTouchStart,
                 onTouchEnd: clearLongPress,
@@ -116,13 +104,7 @@ export default function CanvasLayers({
                     />
                   );
                 case "line":
-                  return (
-                    <LineShape
-                      key={s.id}
-                      onUpdate={({ id, props }) => updateShape(id, props)}
-                      {...props}
-                    />
-                  );
+                  return <LineShape key={s.id} {...props} />;
                 case "arrow":
                   return <ArrowShape key={s.id} {...props} />;
                 case "rect":

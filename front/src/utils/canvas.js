@@ -53,11 +53,17 @@ export function getShapesInArea(x1, y1, x2, y2, shapes, layers) {
       case "rect":
       case "image":
       case "text":
-      case "marker":
         shapeLeft = props.x;
         shapeRight = props.x + props.width;
         shapeTop = props.y;
         shapeBottom = props.y + props.height;
+        break;
+      case "marker":
+        const markerSize = 32;
+        shapeLeft = props.x - markerSize / 2;
+        shapeRight = props.x + markerSize / 2;
+        shapeTop = props.y - markerSize;
+        shapeBottom = props.y;
         break;
       case "circle":
         shapeLeft = props.x - props.radius;

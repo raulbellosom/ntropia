@@ -22,6 +22,7 @@ export default function ArrowShape({
   onDoubleClick,
   onContextMenu,
   listening = true,
+  tool = "select",
 }) {
   const shapeRef = useRef();
   const trRef = useRef();
@@ -56,14 +57,23 @@ export default function ArrowShape({
         onDragEnd={onDragEnd}
         onTransformEnd={onTransformEnd}
         onDblClick={onDoubleClick}
+        onDblTap={onDoubleClick}
         onContextMenu={onContextMenu}
         onMouseEnter={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "move";
+          if (listening) {
+            stage.container().style.cursor = "move";
+          }
         }}
         onMouseLeave={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "default";
+          const currentTool = tool || "select";
+          stage.container().style.cursor =
+            currentTool === "hand"
+              ? "grab"
+              : currentTool === "select"
+              ? "default"
+              : "crosshair";
         }}
       />
       {isSelected && (

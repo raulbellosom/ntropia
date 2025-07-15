@@ -211,14 +211,14 @@ export default function CanvasStage() {
     if (contextMenu) hideContextMenu();
 
     const SHAPE_CLASSES = [
+      "Arrow",
       "Rect",
       "Circle",
       "Line",
       "Text",
       "Image",
-      "Path",
-      "Star",
-      "RegularPolygon",
+      "FreeDraw",
+      "Marker",
       "Group",
     ];
     const clickedOnShape =
@@ -226,7 +226,10 @@ export default function CanvasStage() {
       (SHAPE_CLASSES.includes(e.target.getClassName()) ||
         e.target.getParent()?.getClassName() === "Group");
 
-    if (clickedOnShape) return;
+    // Solo retornar temprano si es herramienta select Y se hizo clic en una figura
+    if (tool === "select" && clickedOnShape) {
+      return;
+    }
 
     // Click en fondo
     const isBackground =
@@ -239,6 +242,7 @@ export default function CanvasStage() {
         selectStart();
       }
     } else if (tool !== "select") {
+      // Permitir dibujo independientemente de si se hace clic en una figura o no
       drawMouseDown(e);
     }
   };
@@ -260,11 +264,137 @@ export default function CanvasStage() {
     }
   };
 
-  // Transform/drag/doubleclick delegados
   const handleTransformEnd = (e) => {
-    // Copia tu lógica actual aquí (puedes seguir usando tu handler viejo si lo necesitas).
-    // ...
-    // (Puedes modularizarlo también luego en un hook si quieres)
+    const node = e.target;
+    if (!node || typeof node.id !== "function") return;
+
+    const id = node.id();
+    const shape = shapes.find((s) => s.id === id);
+    if (!shape) return;
+
+    // Busca si la capa está bloqueada (isLocked)
+    const layer = layers.find((l) => l.id === shape.layerId);
+    const isLocked = layer && layer.locked;
+
+    if (isLocked) return;
+
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    const rotation = node.rotation();
+    const x = node.x();
+    const y = node.y();
+
+    switch (shape.type) {
+      case "arrow":
+        const arrowAttrs = {
+          x: x,
+          y: y,
+          points: shape.props.points.map((point, index) => {
+            if (index % 2 === 0) {
+              // coordenada x
+              return point * scaleX;
+            } else {
+              // coordenada y
+              return point * scaleY;
+            }
+          }),
+          rotation: rotation,
+        };
+        updateShape(id, arrowAttrs);
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+      case "line":
+        const lineAttrs = {
+          x: x,
+          y: y,
+          points: shape.props.points.map((point, index) => {
+            if (index % 2 === 0) {
+              // coordenada x
+              return point * scaleX;
+            } else {
+              // coordenada y
+              return point * scaleY;
+            }
+          }),
+          rotation: rotation,
+        };
+        updateShape(id, lineAttrs);
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+      case "freeDraw":
+        const freeDrawAttrs = {
+          x: x,
+          y: y,
+          points: shape.props.points.map((point, index) => {
+            if (index % 2 === 0) {
+              // coordenada x
+              return point * scaleX;
+            } else {
+              // coordenada y
+              return point * scaleY;
+            }
+          }),
+          rotation: rotation,
+        };
+        updateShape(id, freeDrawAttrs);
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+      case "rect":
+      case "image":
+      case "marker": // Asegura soporte para marker
+        const newAttrs = {
+          x: x,
+          y: y,
+          width: Math.max(5, node.width() * scaleX),
+          height: Math.max(5, node.height() * scaleY),
+          rotation: rotation,
+        };
+
+        updateShape(id, newAttrs);
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+
+      case "text":
+        const textAttrs = {
+          x: x,
+          y: y,
+          width: Math.max(50, node.width() * scaleX),
+          height: Math.max(20, node.height() * scaleY),
+          fontSize: Math.max(8, (shape.props.fontSize || 16) * scaleX),
+          rotation: rotation,
+        };
+
+        updateShape(id, textAttrs);
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+
+      case "circle":
+        updateShape(id, {
+          x: x,
+          y: y,
+          radius: Math.max(5, shape.props.radius * scaleX),
+          rotation: rotation,
+        });
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+        break;
+
+      default:
+        break;
+    }
+
+    saveToHistory();
   };
 
   const handleShapeDragEnd = (e) => {
@@ -284,6 +414,30 @@ export default function CanvasStage() {
       setMarkerModalShapeId(id);
     } else {
       setSelectedShape(id);
+    }
+  };
+
+  const handleStageDoubleClick = (e) => {
+    // Solo cambiar a select si no se hizo doble clic en una figura
+    const SHAPE_CLASSES = [
+      "Arrow",
+      "Rect",
+      "Circle",
+      "Line",
+      "Text",
+      "Image",
+      "FreeDraw",
+      "Marker",
+      "Group",
+    ];
+    const clickedOnShape =
+      e.target.getClassName &&
+      (SHAPE_CLASSES.includes(e.target.getClassName()) ||
+        e.target.getParent()?.getClassName() === "Group");
+
+    if (!clickedOnShape) {
+      const { setTool } = useCanvasStore.getState();
+      setTool("select");
     }
   };
 
@@ -340,6 +494,7 @@ export default function CanvasStage() {
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
         onMouseUp={handleStageMouseUp}
+        onDblClick={handleStageDoubleClick}
         onTouchStart={handleStageMouseDown}
         onTouchMove={handleStageMouseMove}
         onTouchEnd={handleStageMouseUp}

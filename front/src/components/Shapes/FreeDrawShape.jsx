@@ -17,6 +17,7 @@ export default function FreeDrawShape({
   onContextMenu,
   draggable = true,
   listening = true,
+  tool = "select",
 }) {
   const shapeRef = useRef();
   const trRef = useRef();
@@ -75,11 +76,19 @@ export default function FreeDrawShape({
         onTransformEnd={handleTransformEnd}
         onMouseEnter={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "move";
+          if (listening) {
+            stage.container().style.cursor = "move";
+          }
         }}
         onMouseLeave={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "default";
+          const currentTool = tool || "select"; // Obtener tool del contexto
+          stage.container().style.cursor =
+            currentTool === "hand"
+              ? "grab"
+              : currentTool === "select"
+              ? "default"
+              : "crosshair";
         }}
       />
 

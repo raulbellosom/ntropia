@@ -17,7 +17,7 @@ export default function MultiTransformer({
   return (
     <Transformer
       ref={transformerRef}
-      rotateEnabled={false}
+      rotateEnabled={true}
       enabledAnchors={[
         "top-left",
         "top-center",
