@@ -151,10 +151,7 @@ export default function LayersPanel() {
           </h2>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const name = prompt("Nombre de la nueva capa:");
-                if (name && name.trim()) addLayer(name.trim());
-              }}
+              onClick={() => addLayer()}
               title="Agregar capa"
               className="text-green-400 hover:text-green-300"
             >

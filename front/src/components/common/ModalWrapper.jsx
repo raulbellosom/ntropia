@@ -6,6 +6,7 @@ import {
   DialogPanel,
   DialogTitle,
 } from "@headlessui/react";
+import { X } from "lucide-react";
 
 /**
  * ModalWrapper: Componente genérico para modales usando Headless UI.
@@ -35,8 +36,17 @@ export default function ModalWrapper({
         className={`bg-white rounded-lg shadow-lg p-6 z-10 w-full max-w-[95%] md:max-w-2xl ${panelClassName}`}
       >
         {title && (
-          <DialogTitle as="h2" className="text-xl font-semibold mb-4">
-            {title}
+          <DialogTitle
+            as="h2"
+            className="text-xl font-semibold mb-4 flex justify-between items-center"
+          >
+            <span>{title}</span>
+            <span>
+              <X
+                className="h-5 w-5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                onClick={onClose}
+              />
+            </span>
           </DialogTitle>
         )}
         {children}

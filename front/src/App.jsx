@@ -1,25 +1,40 @@
-// src/App.jsx
-import React from "react";
-import Toolbar from "./components/Toolbar/Toolbar";
-import LayersPanel from "./components/LayersPanel/LayersPanel";
-import CanvasStage from "./components/Canvas/CanvasStage";
-import ToolbarControls from "./components/Toolbar/ToolbarControls";
+import { Routes, Route, Navigate } from "react-router-dom";
+import LoginPage from "./components/Auth/LoginPage";
+import RegisterPage from "./components/Auth/RegisterPage";
+import DashboardHome from "./components/Dashboard/DashboardHome";
+import WorkspacePage from "./components/Workspace/WorkspacePage";
+import ProtectedRoute from "./routes/ProtectedRoute";
+import MainLayout from "./layouts/MainLayout"; // <--- Nuevo layout principal
 
 export default function App() {
   return (
-    <div className="h-[100dvh] flex flex-col relative">
-      {/* Barra superior de herramientas */}
-      <Toolbar />
-      <ToolbarControls />
+    <Routes>
+      {/* Rutas públicas */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
-      <LayersPanel />
-      {/* Contenedor principal: panel de capas y área de dibujo */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Panel lateral de capas */}
+      {/* Rutas protegidas, todas bajo MainLayout */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<MainLayout />}>
+          <Route path="/dashboard" element={<DashboardHome />} />
+          {/* Agrega aquí más rutas protegidas si quieres */}
+        </Route>
+        <Route path="/workspace/:id" element={<WorkspacePage />} />
+      </Route>
 
-        {/* Canvas con zoom, pan y shapes */}
-        <CanvasStage />
-      </div>
-    </div>
+      {/* Ruta raíz */}
+      <Route
+        path="/"
+        element={
+          !!localStorage.getItem("access_token") ? (
+            <Navigate to="/dashboard" />
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+      {/* Ruta catch-all para 404 (opcional) */}
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
   );
 }

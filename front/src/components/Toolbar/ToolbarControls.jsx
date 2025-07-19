@@ -1,5 +1,5 @@
 // src/components/Toolbar/ToolbarControls.jsx
-import React, { useState } from "react"; // ¡Agrega useState!
+import React from "react";
 import {
   ZoomIn,
   ZoomOut,
@@ -7,13 +7,10 @@ import {
   LocateFixed,
   Undo,
   Redo,
-  Layout as LayoutIcon,
-  Settings,
 } from "lucide-react";
 import { useCanvasStore } from "../../store/useCanvasStore";
 import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
-import SettingsMenuModal from "../Canvas/SettingsMenuModal";
 
 export default function ToolbarControls() {
   const { zoom, zoomIn, zoomOut, resetView, gridEnabled, toggleGrid } =
@@ -24,12 +21,10 @@ export default function ToolbarControls() {
 
   const isMobile = useMediaQuery({ maxWidth: 768 });
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
   return (
     <div
       className={classNames(
-        "fixed z-50 right-4 bottom-4 transition-all duration-200",
+        "fixed z-50 right-3 bottom-3 transition-all duration-200",
         { "right-1 left-1 flex justify-center": isMobile }
       )}
     >
@@ -44,14 +39,14 @@ export default function ToolbarControls() {
       >
         <button
           onClick={undo}
-          title="Deshacer"
+          title="Deshacer (Ctrl+Z)"
           className="p-2 rounded transition-colors text-white hover:bg-blue-500/90 duration-150"
         >
           <Undo size={20} />
         </button>
         <button
           onClick={redo}
-          title="Rehacer"
+          title="Rehacer (Ctrl+Shift+Z)"
           className="p-2 rounded transition-colors text-white hover:bg-blue-500/90 duration-150"
         >
           <Redo size={20} />
@@ -90,18 +85,7 @@ export default function ToolbarControls() {
         >
           <GridIcon size={20} />
         </button>
-        <button
-          className="p-2 rounded text-white hover:bg-blue-500/90 transition-colors duration-150"
-          title="Configuración del lienzo"
-          onClick={() => setSettingsOpen(true)}
-        >
-          <Settings size={24} />
-        </button>
       </nav>
-      <SettingsMenuModal
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
     </div>
   );
 }

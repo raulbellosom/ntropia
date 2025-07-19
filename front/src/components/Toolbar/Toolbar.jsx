@@ -1,5 +1,5 @@
 // src/components/Toolbar/Toolbar.jsx
-import React from "react";
+import React, { useState } from "react";
 import {
   MousePointerClick as SelectIcon,
   Hand as HandIcon,
@@ -11,17 +11,21 @@ import {
   Image as ImageIcon,
   MapPin as MarkerIcon,
   Droplet,
-  Layout as BgIcon,
   Layers,
   Copy,
   Clipboard,
   PaintBucket,
   ArrowRight,
+  Settings,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useCanvasStore } from "../../store/useCanvasStore";
 import IconColorPicker from "../common/IconColorPicker";
 import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
+import SettingsMenuModal from "../Canvas/SettingsMenuModal";
+import { motion, AnimatePresence } from "framer-motion";
 
 const tools = [
   { name: "select", icon: SelectIcon, title: "Seleccionar (V)" },
@@ -36,16 +40,96 @@ const tools = [
   { name: "marker", icon: MarkerIcon, title: "Marcador (M)" },
 ];
 
+// Variantes de animación para el contenedor principal
+const containerVariants = {
+  collapsed: {
+    height: 56,
+    transition: {
+      duration: 0.4,
+      ease: [0.4, 0, 0.2, 1],
+      when: "afterChildren",
+    },
+  },
+  expanded: {
+    height: "auto",
+    transition: {
+      duration: 0.4,
+      ease: [0.4, 0, 0.2, 1],
+      when: "beforeChildren",
+    },
+  },
+};
+
+// Variantes para el contenido de la toolbar
+const contentVariants = {
+  collapsed: {
+    opacity: 0,
+    y: -10,
+    transition: {
+      duration: 0.2,
+      ease: "easeIn",
+      staggerChildren: 0.01,
+      staggerDirection: -1,
+    },
+  },
+  expanded: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.3,
+      ease: "easeOut",
+      staggerChildren: 0.03,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+// Variantes para elementos individuales
+const itemVariants = {
+  collapsed: {
+    opacity: 0,
+    scale: 0.9,
+    y: -5,
+    transition: {
+      duration: 0.15,
+      ease: "easeIn",
+    },
+  },
+  expanded: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: {
+      duration: 0.2,
+      ease: "easeOut",
+    },
+  },
+};
+
+// Variantes para el botón de toggle
+const toggleButtonVariants = {
+  collapsed: {
+    rotate: 0,
+    transition: {
+      duration: 0.3,
+      ease: "easeOut",
+    },
+  },
+  expanded: {
+    rotate: 180,
+    transition: {
+      duration: 0.3,
+      ease: "easeOut",
+    },
+  },
+};
+
 export default function Toolbar() {
-  const {
-    strokeColor,
-    fillColor,
-    backgroundColor,
-    setBackgroundColor,
-    tool,
-    setTool,
-    clipboardShape,
-  } = useCanvasStore();
+  const { strokeColor, fillColor, tool, setTool, clipboardShape } =
+    useCanvasStore();
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const toggleLayersPanel = useCanvasStore((s) => s.toggleLayersPanel);
   const layersPanelVisible = useCanvasStore((s) => s.layersPanelVisible);
@@ -60,14 +144,14 @@ export default function Toolbar() {
 
   const selectedShape = shapes.find((s) => s.id === selectedShapeId);
 
-  const currentStrokeColor = selectedShape?.props?.stroke ?? strokeColor; // shape o global
-  const currentFillColor = selectedShape?.props?.fill ?? fillColor; // shape o global
+  const currentStrokeColor = selectedShape?.props?.stroke ?? strokeColor;
+  const currentFillColor = selectedShape?.props?.fill ?? fillColor;
 
   const handleStrokeColorChange = (color) => {
     if (selectedShape) {
       updateShape(selectedShape.id, { stroke: color });
     } else {
-      setStrokeColor(color); // Para futuros shapes
+      setStrokeColor(color);
     }
   };
 
@@ -75,137 +159,220 @@ export default function Toolbar() {
     if (selectedShape) {
       updateShape(selectedShape.id, { fill: color });
     } else {
-      setFillColor(color); // Para futuros shapes
+      setFillColor(color);
     }
   };
 
   const isMobile = useMediaQuery({ maxWidth: 768 });
 
   return (
-    <div
-      className={classNames(
-        "fixed z-50 top-4 left-1/2 -translate-x-1/2 transition-all duration-200",
-        { "w-[95vw]": isMobile, "w-auto": !isMobile }
-      )}
-      style={{
-        maxWidth: isMobile ? "100vw" : "100%",
-      }}
-    >
-      <nav
+    <>
+      <motion.div
+        variants={containerVariants}
+        animate={collapsed ? "collapsed" : "expanded"}
         className={classNames(
-          "flex items-center gap-2 overflow-x-auto p-2 bg-blue-900/50 backdrop-blur-lg rounded-xl shadow-2xl",
-          { "w-full": isMobile, "w-auto": !isMobile }
+          "fixed z-40 flex flex-col items-center",
+          "backdrop-blur-lg shadow-2xl bg-blue-900/50 rounded-2xl",
+          "top-3 right-3"
         )}
         style={{
-          maxWidth: isMobile ? "100vw" : "unset",
-          minWidth: isMobile ? 220 : 0,
+          width: 64,
+          height: "auto",
+          minHeight: 56,
+          maxHeight: "calc(100vh - 112px)",
+          overflow: "hidden",
         }}
       >
-        {/* Botón de capas */}
-        <button
-          onClick={() => {
-            toggleLayersPanel();
-            setTool("select"); // <-- Esto pone la herramienta en "select" cada vez
-          }}
-          title={
-            layersPanelVisible
-              ? "Ocultar capas (Shift+L)"
-              : "Mostrar capas (Shift+L)"
-          }
+        {/* Botón de toggle siempre visible */}
+        <motion.button
+          variants={toggleButtonVariants}
+          animate={collapsed ? "collapsed" : "expanded"}
           className={classNames(
-            "flex-shrink-0 text-white rounded p-2 shadow-lg transition",
-            {
-              "bg-blue-600": layersPanelVisible,
-              "bg-slate-800": !layersPanelVisible,
-            }
+            "p-2 transition-colors duration-200 flex-shrink-0 bg-slate-800 text-white flex items-center justify-center",
+            "rounded-t-2xl w-full"
           )}
+          onClick={() => setCollapsed(!collapsed)}
+          title={collapsed ? "Mostrar herramientas" : "Colapsar herramientas"}
         >
-          <Layers size={20} />
-        </button>
-        <div className="border-r border-slate-500/50 h-8" />
+          {isMobile ? (
+            collapsed ? (
+              <ChevronUp size={20} />
+            ) : (
+              <ChevronDown size={20} />
+            )
+          ) : collapsed ? (
+            <ChevronDown size={20} />
+          ) : (
+            <ChevronUp size={20} />
+          )}
+        </motion.button>
 
-        {/* Herramientas principales */}
-        <div className="flex flex-nowrap items-center space-x-2">
-          {tools.map(({ name, icon: Icon, title }) => (
-            <button
-              key={name}
-              title={title}
-              onClick={() => setTool(name)}
+        {/* Contenido de la toolbar */}
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.div
+              key="toolbar-content"
+              variants={contentVariants}
+              initial="collapsed"
+              animate="expanded"
+              exit="collapsed"
               className={classNames(
-                "p-2 rounded transition-colors duration-200 flex-shrink-0",
-                {
-                  "bg-blue-500/90 text-white": tool === name,
-                  "text-white hover:text-white hover:bg-blue-500/90":
-                    tool !== name,
-                }
+                "flex items-center gap-2 p-2",
+                "w-full flex-1 flex-col overflow-y-auto"
               )}
+              style={{
+                maxHeight: "calc(100vh - 168px)", // Ajustado para evitar overflow
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
             >
-              <Icon size={20} />
-            </button>
-          ))}
-
-          {/* borde izquierdo */}
-          <div className="border-l border-slate-500/50 h-8" />
-
-          <div className="flex items-center gap-2">
-            <button
-              className={classNames(
-                "p-2 rounded transition-colors duration-200 flex-shrink-0",
-                {
-                  "bg-blue-500/90 text-white": selectedShapeId,
-                  "text-white hover:text-white hover:bg-blue-500/90":
-                    !selectedShapeId,
+              {/* Botón de capas */}
+              <motion.button
+                variants={itemVariants}
+                onClick={() => {
+                  toggleLayersPanel();
+                  setTool("select");
+                }}
+                title={
+                  layersPanelVisible
+                    ? "Ocultar capas (Shift+L)"
+                    : "Mostrar capas (Shift+L)"
                 }
-              )}
-              title="Copiar elemento (Ctrl+C)"
-              onClick={() => copyShape(selectedShapeId)}
-              disabled={!selectedShapeId}
-            >
-              <Copy size={20} />
-            </button>
-            <button
-              className={classNames(
-                "p-2 rounded transition-colors duration-200 flex-shrink-0",
-                {
-                  "bg-blue-500/90 text-white": clipboardShape,
-                  "text-white hover:text-white hover:bg-blue-500/90":
-                    !clipboardShape,
-                }
-              )}
-              title="Pegar elemento (Ctrl+V)"
-              onClick={pasteShape}
-              disabled={!clipboardShape}
-            >
-              <Clipboard size={20} />
-            </button>
-          </div>
+                className={classNames(
+                  "flex-shrink-0 text-white rounded p-2 shadow-lg transition-colors duration-200",
+                  {
+                    "bg-blue-600": layersPanelVisible,
+                    "bg-slate-800 hover:bg-blue-500/90": !layersPanelVisible,
+                  }
+                )}
+              >
+                <Layers size={20} />
+              </motion.button>
 
-          {/* borde derecho */}
-          <div className="border-r border-slate-500/50 h-8" />
+              {/* Herramientas principales */}
+              <motion.div
+                variants={itemVariants}
+                className={classNames("flex gap-2", "flex-col")}
+              >
+                {tools.map(({ name, icon: Icon, title }, index) => (
+                  <motion.button
+                    key={name}
+                    variants={itemVariants}
+                    custom={index}
+                    title={title}
+                    onClick={() => setTool(name)}
+                    className={classNames(
+                      "p-2 rounded transition-colors duration-200 flex-shrink-0",
+                      {
+                        "bg-blue-500/90 text-white": tool === name,
+                        "text-white hover:text-white hover:bg-blue-500/90":
+                          tool !== name,
+                      }
+                    )}
+                  >
+                    <Icon size={20} />
+                  </motion.button>
+                ))}
+              </motion.div>
 
-          {/* Paletas de color */}
-          <div className="flex items-center gap-3">
-            <IconColorPicker
-              icon={Droplet}
-              color={currentStrokeColor}
-              onChange={handleStrokeColorChange}
-              label="Color del trazo"
-            />
-            <IconColorPicker
-              icon={PaintBucket}
-              color={currentFillColor}
-              onChange={handleFillColorChange}
-              label="Color de relleno"
-            />
-            {/* <IconColorPicker
-              icon={BgIcon}
-              color={backgroundColor}
-              onChange={setBackgroundColor}
-              label="Color de fondo"
-            /> */}
-          </div>
-        </div>
-      </nav>
-    </div>
+              {/* Separador */}
+              <motion.div
+                variants={itemVariants}
+                className={classNames(
+                  "border-slate-500/50",
+                  "border-t w-8 my-2"
+                )}
+              />
+
+              {/* Paletas de color */}
+              <motion.div
+                variants={itemVariants}
+                className={classNames("flex gap-3 items-center", "flex-col")}
+              >
+                <motion.div variants={itemVariants}>
+                  <IconColorPicker
+                    icon={Droplet}
+                    color={currentStrokeColor}
+                    onChange={handleStrokeColorChange}
+                    label="Color del trazo"
+                    vertical={!isMobile}
+                  />
+                </motion.div>
+                <motion.div variants={itemVariants}>
+                  <IconColorPicker
+                    icon={PaintBucket}
+                    color={currentFillColor}
+                    onChange={handleFillColorChange}
+                    label="Color de relleno"
+                    vertical={!isMobile}
+                  />
+                </motion.div>
+                <motion.button
+                  variants={itemVariants}
+                  className="p-2 rounded text-white hover:bg-blue-500/90 transition-colors duration-200"
+                  title="Configuración del lienzo"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <Settings size={20} />
+                </motion.button>
+              </motion.div>
+
+              {/* Separador */}
+              <motion.div
+                variants={itemVariants}
+                className={classNames(
+                  "border-slate-500/50",
+                  "border-t w-8 my-2"
+                )}
+              />
+
+              {/* Acciones rápidas */}
+              <motion.div
+                variants={itemVariants}
+                className={classNames("flex gap-2", "flex-col")}
+              >
+                <motion.button
+                  variants={itemVariants}
+                  className={classNames(
+                    "p-2 rounded transition-colors duration-200 flex-shrink-0",
+                    {
+                      "bg-blue-500/90 text-white": selectedShapeId,
+                      "text-white hover:text-white hover:bg-blue-500/90":
+                        !selectedShapeId,
+                    }
+                  )}
+                  title="Copiar elemento (Ctrl+C)"
+                  onClick={() => copyShape(selectedShapeId)}
+                  disabled={!selectedShapeId}
+                >
+                  <Copy size={20} />
+                </motion.button>
+                <motion.button
+                  variants={itemVariants}
+                  className={classNames(
+                    "p-2 rounded transition-colors duration-200 flex-shrink-0",
+                    {
+                      "bg-blue-500/90 text-white": clipboardShape,
+                      "text-white hover:text-white hover:bg-blue-500/90":
+                        !clipboardShape,
+                    }
+                  )}
+                  title="Pegar elemento (Ctrl+V)"
+                  onClick={pasteShape}
+                  disabled={!clipboardShape}
+                >
+                  <Clipboard size={20} />
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      <SettingsMenuModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+    </>
   );
 }

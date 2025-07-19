@@ -29,3 +29,15 @@
   scrollbar-color: #223046 #111827; /* thumb, track */
   scrollbar-width: thin;
 }
+
+.workspace-thumbnail {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 1rem;
+  filter: blur(2px) brightness(0.6);
+  transition: filter 0.3s;
+}
+.workspace-thumbnail:hover {
+  filter: blur(0) brightness(1);
+}

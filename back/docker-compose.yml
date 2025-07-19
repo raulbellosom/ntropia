@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_DATABASE: directus
+      MYSQL_ROOT_PASSWORD: directus
+      MYSQL_USER: directus
+      MYSQL_PASSWORD: directus
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: unless-stopped
+
+  directus:
+    image: directus/directus:latest
+    depends_on:
+      - db
+    ports:
+      - 8055:8055
+    environment:
+      SECRET: mysupersecretkey # <-- Cambia KEY por SECRET
+      PUBLIC_URL: http://localhost:8055 # <-- Muy recomendado
+      ADMIN_EMAIL: admin@demo.com
+      ADMIN_PASSWORD: 12345678
+      DB_CLIENT: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: directus
+      DB_USER: directus
+      DB_PASSWORD: directus
+      CORS_ENABLED: "true"
+      CORS_ORIGIN: "http://localhost:5173"
+    volumes:
+      - directus_data:/data
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  directus_data:
