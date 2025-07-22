@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import {
   MousePointerClick as SelectIcon,
-  Hand as HandIcon,
   Slash as LineIcon,
   Square as RectIcon,
   Circle as CircleIcon,
@@ -11,7 +10,6 @@ import {
   Image as ImageIcon,
   MapPin as MarkerIcon,
   Droplet,
-  Layers,
   Copy,
   Clipboard,
   PaintBucket,
@@ -26,10 +24,11 @@ import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
 import SettingsMenuModal from "../Canvas/SettingsMenuModal";
 import { motion, AnimatePresence } from "framer-motion";
+import useValidActiveLayer from "../../hooks/useValidActiveLayer";
+import { toast } from "react-hot-toast";
 
 const tools = [
   { name: "select", icon: SelectIcon, title: "Seleccionar (V)" },
-  { name: "hand", icon: HandIcon, title: "Mano (Pan)" },
   { name: "free", icon: FreeIcon, title: "Dibujo libre" },
   { name: "line", icon: LineIcon, title: "Línea (L)" },
   { name: "arrow", icon: ArrowRight, title: "Flecha (A)" },
@@ -125,14 +124,14 @@ const toggleButtonVariants = {
 };
 
 export default function Toolbar() {
-  const { strokeColor, fillColor, tool, setTool, clipboardShape } =
-    useCanvasStore();
+  const { strokeColor, fillColor, tool, clipboardShape } = useCanvasStore();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-  const toggleLayersPanel = useCanvasStore((s) => s.toggleLayersPanel);
-  const layersPanelVisible = useCanvasStore((s) => s.layersPanelVisible);
+  const validActiveLayer = useValidActiveLayer();
+  const hasActiveLayer = !!validActiveLayer;
+
   const selectedShapeId = useCanvasStore((s) => s.selectedShapeId);
   const copyShape = useCanvasStore((s) => s.copyShape);
   const pasteShape = useCanvasStore((s) => s.pasteShape);
@@ -147,9 +146,13 @@ export default function Toolbar() {
   const currentStrokeColor = selectedShape?.props?.stroke ?? strokeColor;
   const currentFillColor = selectedShape?.props?.fill ?? fillColor;
 
+  const activeLayerId = useCanvasStore((s) => s.activeLayerId);
+  const setTool = useCanvasStore((s) => s.setTool);
+
   const handleStrokeColorChange = (color) => {
     if (selectedShape) {
       updateShape(selectedShape.id, { stroke: color });
+      saveToHistory();
     } else {
       setStrokeColor(color);
     }
@@ -158,6 +161,7 @@ export default function Toolbar() {
   const handleFillColorChange = (color) => {
     if (selectedShape) {
       updateShape(selectedShape.id, { fill: color });
+      saveToHistory();
     } else {
       setFillColor(color);
     }
@@ -226,29 +230,6 @@ export default function Toolbar() {
                 msOverflowStyle: "none",
               }}
             >
-              {/* Botón de capas */}
-              <motion.button
-                variants={itemVariants}
-                onClick={() => {
-                  toggleLayersPanel();
-                  setTool("select");
-                }}
-                title={
-                  layersPanelVisible
-                    ? "Ocultar capas (Shift+L)"
-                    : "Mostrar capas (Shift+L)"
-                }
-                className={classNames(
-                  "flex-shrink-0 text-white rounded p-2 shadow-lg transition-colors duration-200",
-                  {
-                    "bg-blue-600": layersPanelVisible,
-                    "bg-slate-800 hover:bg-blue-500/90": !layersPanelVisible,
-                  }
-                )}
-              >
-                <Layers size={20} />
-              </motion.button>
-
               {/* Herramientas principales */}
               <motion.div
                 variants={itemVariants}
@@ -260,7 +241,20 @@ export default function Toolbar() {
                     variants={itemVariants}
                     custom={index}
                     title={title}
-                    onClick={() => setTool(name)}
+                    onClick={() => {
+                      if (
+                        name !== "select" &&
+                        name !== "hand" &&
+                        !hasActiveLayer
+                      ) {
+                        toast("Selecciona una capa antes de continuar", {
+                          icon: "⚠️",
+                          duration: 3000,
+                        });
+                        return;
+                      }
+                      setTool(name);
+                    }}
                     className={classNames(
                       "p-2 rounded transition-colors duration-200 flex-shrink-0",
                       {

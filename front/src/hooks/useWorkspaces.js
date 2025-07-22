@@ -16,6 +16,7 @@ export function useWorkspace(id) {
     queryKey: ["workspace", id],
     queryFn: () => ws.getWorkspace(id),
     enabled: !!id,
+    select: (res) => res.data.data || null, // <-- ESTE SELECT desanida el objeto
   });
 }
 

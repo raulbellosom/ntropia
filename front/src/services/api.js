@@ -5,7 +5,6 @@ import { API_URL } from "../config";
 // Instancia principal de Axios
 const api = axios.create({
   baseURL: API_URL,
-  // Puedes agregar otras configs por defecto aquí si quieres (timeout, etc.)
 });
 
 // Interceptor para agregar automáticamente el token a cada request
@@ -24,15 +23,16 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Si el token expira o la sesión es inválida
-    if (error.response && error.response.status === 401) {
+    // Si el token expiró o es inválido
+    if (error.response?.status === 401) {
+      console.warn("Token expirado o inválido, redirigiendo al login...");
       localStorage.removeItem("access_token");
-      // Opcional: redirige a login si estás en el browser
-      if (window.location.pathname !== "/login") {
+
+      // Evitar bucle infinito si ya estamos en login
+      if (!window.location.pathname.includes("/login")) {
         window.location.href = "/login";
       }
     }
-    // Puedes manejar otros códigos de error aquí (403, 500, etc.)
     return Promise.reject(error);
   }
 );

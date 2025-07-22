@@ -1,58 +1,75 @@
-// src/hooks/useFiles.js
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as files from "../services/files";
 
-// Todos los archivos de un workspace
-export function useFiles(workspaceId) {
+/** Listar archivos con soporte a params de Directus (limit, filter, search, etc) */
+export function useFiles(params) {
   return useQuery({
-    queryKey: ["files", workspaceId],
-    queryFn: () => files.getFiles(workspaceId),
+    queryKey: ["files", params],
+    queryFn: () => files.getFiles(params),
     select: (res) => res.data.data || [],
-    enabled: !!workspaceId,
   });
 }
 
-// Un archivo
-export function useFile(id) {
+/** Obtener un archivo individual */
+export function useFile(id, params) {
   return useQuery({
-    queryKey: ["file", id],
-    queryFn: () => files.getFile(id),
+    queryKey: ["file", id, params],
+    queryFn: () => files.getFile(id, params),
     enabled: !!id,
+    select: (res) => res.data.data,
   });
 }
 
-// Crear archivo
-export function useCreateFile() {
+/** Subir archivo (blob o File) */
+export function useUploadFile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: files.createFile,
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["files", vars.workspace_id] });
+    mutationFn: ({ file, fileName }) => files.uploadFile(file, fileName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
     },
   });
 }
 
-// Actualizar archivo
+/** Importar archivo desde URL */
+export function useImportFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ url, ...otherData }) => files.importFile(url, otherData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
+    },
+  });
+}
+
+/** Actualizar metadata */
 export function useUpdateFile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }) => files.updateFile(id, data),
-    onSuccess: (_, { data }) => {
-      if (data?.workspace_id)
-        queryClient.invalidateQueries({
-          queryKey: ["files", data.workspace_id],
-        });
-      else queryClient.invalidateQueries({ queryKey: ["files"] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
     },
   });
 }
 
-// Eliminar archivo
+/** Eliminar archivo individual */
 export function useDeleteFile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: files.deleteFile,
-    onSuccess: (_, id, context) => {
+    mutationFn: (id) => files.deleteFile(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
+    },
+  });
+}
+
+/** Eliminar varios archivos */
+export function useDeleteFiles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids) => files.deleteFiles(ids),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files"] });
     },
   });

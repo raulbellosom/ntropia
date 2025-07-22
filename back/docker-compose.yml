@@ -19,8 +19,8 @@ services:
     ports:
       - 8055:8055
     environment:
-      SECRET: mysupersecretkey # <-- Cambia KEY por SECRET
-      PUBLIC_URL: http://localhost:8055 # <-- Muy recomendado
+      SECRET: mysupersecretkey
+      PUBLIC_URL: http://localhost:8055
       ADMIN_EMAIL: admin@demo.com
       ADMIN_PASSWORD: 12345678
       DB_CLIENT: mysql
@@ -33,6 +33,7 @@ services:
       CORS_ORIGIN: "http://localhost:5173"
     volumes:
       - directus_data:/data
+      - ./extensions:/directus/extensions # <-- AGREGAR ESTA LÍNEA
     restart: unless-stopped
 
 volumes:

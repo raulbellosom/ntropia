@@ -1,17 +1,21 @@
 // src/components/LayersPanel/LayersPanel.jsx
 import React, { useState, useCallback } from "react";
 import { useCanvasStore } from "../../store/useCanvasStore";
-import { PlusCircle, X } from "lucide-react";
+import { Layers, PlusCircle, X } from "lucide-react";
 import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
 import { DragDropContext, Droppable } from "@hello-pangea/dnd";
 import LayerItem from "./LayerItem";
 import useOpenLayers from "../../hooks/useOpenLayers";
+import { useEditMode } from "../../hooks/useEditMode";
+import ModalWrapper from "../common/ModalWrapper";
+import { toast } from "react-hot-toast";
 
 export default function LayersPanel() {
   // Edición
   const [editingId, setEditingId] = useState(null);
   const [editingValue, setEditingValue] = useState("");
+  const [confirmDeleteLayerId, setConfirmDeleteLayerId] = useState(null);
 
   // Store y hooks
   const layers = useCanvasStore((state) => state.layers);
@@ -34,6 +38,7 @@ export default function LayersPanel() {
     (state) => state.toggleShapeVisibility
   );
   const layersPanelVisible = useCanvasStore((s) => s.layersPanelVisible);
+  const { isEditMode } = useEditMode();
 
   const isMobile = useMediaQuery({ maxWidth: 768 });
   const { toggleLayerOpen, isLayerOpen } = useOpenLayers();
@@ -46,18 +51,41 @@ export default function LayersPanel() {
 
       // Capas
       if (type === "layer") {
-        if (source.index !== destination.index) {
-          let idx = source.index;
-          while (idx > destination.index) {
-            useCanvasStore.getState().moveLayerUp(layers[idx].id);
-            idx--;
-          }
-          while (idx < destination.index) {
-            useCanvasStore.getState().moveLayerDown(layers[idx].id);
-            idx++;
-          }
-        }
-        return;
+        // Filtra solo capas visibles (igual que el .map que usas para renderizar)
+        const visibleLayers = layers.filter((l) => !l._toDelete);
+
+        // Obtén los ids antes y después
+        const sourceId = visibleLayers[source.index]?.id;
+        const destId = visibleLayers[destination.index]?.id;
+
+        // Si el índice no cambió, no hacemos nada
+        if (source.index === destination.index) return;
+
+        // Saca el array visible, reordénalo según drag
+        const reordered = [...visibleLayers];
+        const [removed] = reordered.splice(source.index, 1);
+        reordered.splice(destination.index, 0, removed);
+
+        // Reasigna el order en el store solo para visibles
+        useCanvasStore.setState((state) => {
+          // Mantén el array completo pero actualiza los .order de las capas visibles
+          const layersCopy = [...state.layers];
+          reordered.forEach((layer, idx) => {
+            const indexInAll = layersCopy.findIndex((l) => l.id === layer.id);
+            if (indexInAll !== -1) {
+              layersCopy[indexInAll] = {
+                ...layersCopy[indexInAll],
+                order: idx,
+                _dirty: !layersCopy[indexInAll]._isNew
+                  ? true
+                  : layersCopy[indexInAll]._dirty,
+              };
+            }
+          });
+          // Opcional: reordena el array layers en el store según el nuevo orden global
+          layersCopy.sort((a, b) => a.order - b.order);
+          return { layers: layersCopy };
+        });
       }
       // Shapes
       if (type === "shape") {
@@ -116,6 +144,19 @@ export default function LayersPanel() {
     setEditingValue("");
   };
 
+  // ... dentro del componente LayersPanel
+
+  const handleSetActiveLayer = (layerId) => {
+    if (!layerId) {
+      toast("Selecciona una capa para continuar", {
+        icon: "ℹ️",
+        duration: 3000,
+      });
+      return;
+    }
+    setActiveLayer(layerId);
+  };
+
   return (
     <div
       className={classNames("fixed z-50 transition-all duration-300", {
@@ -131,32 +172,22 @@ export default function LayersPanel() {
         ...(isMobile ? { bottom: "auto", right: "auto" } : {}),
       }}
     >
-      <aside className="w-full bg-slate-900/95 text-white shadow-2xl p-4 rounded-2xl border border-blue-900 backdrop-blur-lg">
+      <aside className="w-full bg-slate-900/95 text-white shadow-2xl p-4 rounded-2xl border border-blue-900 backdrop-blur-lg text-xs">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>
-              <svg
-                className="inline mr-1"
-                width={22}
-                height={22}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <rect x="3" y="6" width="16" height="13" rx="2" />
-                <rect x="6" y="3" width="10" height="4" rx="2" />
-              </svg>
-            </span>
+            <Layers size={20} />
             Capas
           </h2>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => addLayer()}
-              title="Agregar capa"
-              className="text-green-400 hover:text-green-300"
-            >
-              <PlusCircle size={22} />
-            </button>
+            {isEditMode && (
+              <button
+                onClick={() => addLayer()}
+                title="Agregar capa"
+                className="text-green-400 hover:text-green-300"
+              >
+                <PlusCircle size={22} />
+              </button>
+            )}
             <button
               onClick={() => useCanvasStore.getState().hideLayersPanel()}
               title="Cerrar panel de capas"
@@ -168,7 +199,7 @@ export default function LayersPanel() {
         </div>
         <div
           className="overflow-y-auto"
-          style={{ maxHeight: isMobile ? "55vh" : "78dvh" }}
+          style={{ maxHeight: isMobile ? "70dvh" : "75dvh" }}
         >
           <DragDropContext onDragEnd={onDragEnd}>
             <Droppable droppableId="LAYERS-DND" type="layer">
@@ -178,43 +209,48 @@ export default function LayersPanel() {
                   ref={provided.innerRef}
                   className={classNames("space-y-4", { "space-y-2": isMobile })}
                 >
-                  {layers.map((layer, idx) => {
-                    const isActive = layer.id === activeLayerId;
-                    const objects = shapes.filter(
-                      (s) => s.layerId === layer.id
-                    );
-                    const isOpen = isLayerOpen(layer.id);
+                  {layers
+                    .filter((l) => !l._toDelete)
+                    .map((layer, idx) => {
+                      const isActive = layer.id === activeLayerId;
+                      const objects = shapes.filter(
+                        (s) => s.layerId === layer.id && !s._toDelete
+                      );
+                      const isOpen = isLayerOpen(layer.id);
 
-                    return (
-                      <LayerItem
-                        key={layer.id}
-                        layer={layer}
-                        idx={idx}
-                        isActive={isActive}
-                        isOpen={isOpen}
-                        objects={objects}
-                        layers={layers}
-                        selectedShapeIds={selectedShapeIds}
-                        setActiveLayer={setActiveLayer}
-                        setEditingId={setEditingId}
-                        editingId={editingId}
-                        editingValue={editingValue}
-                        setEditingValue={setEditingValue}
-                        handleRenameLayer={handleRenameLayer}
-                        moveLayerUp={moveLayerUp}
-                        moveLayerDown={moveLayerDown}
-                        toggleLayerVisibility={toggleLayerVisibility}
-                        toggleLayerLock={toggleLayerLock}
-                        removeLayer={removeLayer}
-                        setLayerOpacity={setLayerOpacity}
-                        toggleLayerOpen={toggleLayerOpen}
-                        setSelectedShape={setSelectedShape}
-                        toggleShapeVisibility={toggleShapeVisibility}
-                        removeShape={removeShape}
-                        handleRenameShape={handleRenameShape}
-                      />
-                    );
-                  })}
+                      return (
+                        <LayerItem
+                          key={layer.id}
+                          layer={layer}
+                          idx={idx}
+                          isEditMode={isEditMode}
+                          isActive={isActive}
+                          isOpen={isOpen}
+                          objects={objects}
+                          layers={layers}
+                          selectedShapeIds={selectedShapeIds}
+                          setActiveLayer={handleSetActiveLayer}
+                          setEditingId={setEditingId}
+                          editingId={editingId}
+                          editingValue={editingValue}
+                          setEditingValue={setEditingValue}
+                          handleRenameLayer={handleRenameLayer}
+                          moveLayerUp={moveLayerUp}
+                          moveLayerDown={moveLayerDown}
+                          toggleLayerVisibility={toggleLayerVisibility}
+                          toggleLayerLock={toggleLayerLock}
+                          setLayerOpacity={setLayerOpacity}
+                          toggleLayerOpen={toggleLayerOpen}
+                          setSelectedShape={setSelectedShape}
+                          toggleShapeVisibility={toggleShapeVisibility}
+                          removeShape={removeShape}
+                          handleRenameShape={handleRenameShape}
+                          onRequestDelete={() =>
+                            setConfirmDeleteLayerId(layer.id)
+                          }
+                        />
+                      );
+                    })}
                   {provided.placeholder}
                 </ul>
               )}
@@ -222,6 +258,32 @@ export default function LayersPanel() {
           </DragDropContext>
         </div>
       </aside>
+      <ModalWrapper
+        isOpen={!!confirmDeleteLayerId}
+        onClose={() => setConfirmDeleteLayerId(null)}
+        title="Eliminar capa"
+      >
+        <p className="mb-3">
+          ¿Seguro que deseas eliminar esta capa y todos sus elementos?
+        </p>
+        <div className="flex gap-3 justify-end mt-6">
+          <button
+            className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+            onClick={() => setConfirmDeleteLayerId(null)}
+          >
+            Cancelar
+          </button>
+          <button
+            className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+            onClick={() => {
+              removeLayer(confirmDeleteLayerId);
+              setConfirmDeleteLayerId(null);
+            }}
+          >
+            Eliminar
+          </button>
+        </div>
+      </ModalWrapper>
     </div>
   );
 }

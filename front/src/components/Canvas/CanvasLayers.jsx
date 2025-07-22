@@ -10,6 +10,7 @@ import TextShape from "../Shapes/TextShape";
 import ImageShape from "../Shapes/ImageShape";
 import MarkerIcon from "../Marker/MarkerIcon";
 import ArrowShape from "../Shapes/ArrowShape";
+import { useEditMode } from "../../hooks/useEditMode";
 
 /**
  * Renderiza todas las capas y sus figuras.
@@ -25,17 +26,19 @@ export default function CanvasLayers({
   handleTransformEnd,
   handleShapeDragEnd,
   handleShapeDoubleClick,
-  setContextMenu, // función para mostrar menú contextual
+  setContextMenu,
   autoEditTextId,
   updateShape, // para FreeDrawShape y LineShape
+  setActiveLayer,
 }) {
+  const { isEditMode } = useEditMode();
   return (
     <>
       {layers.map((layer) => {
         if (!layer.visible) return null;
         const isLocked = layer.locked;
         const shapesDeCapa = shapes.filter(
-          (s) => s.layerId === layer.id && s.visible !== false
+          (s) => s.layerId === layer.id && s.visible !== false && !s._toDelete
         );
         if (shapesDeCapa.length === 0) return null;
 
@@ -49,6 +52,7 @@ export default function CanvasLayers({
               const isShapeLocked = isLocked;
               let longPressTimer = null;
 
+              // Handlers solo si es modo edición
               const handleTouchStart = (e) => {
                 if (tool !== "select" || isShapeLocked) return;
                 longPressTimer = setTimeout(() => {
@@ -57,41 +61,59 @@ export default function CanvasLayers({
               };
               const clearLongPress = () => clearTimeout(longPressTimer);
 
-              const props = {
+              // PROPS COMUNES (modificados por modo edición)
+              const isMarker = s.type === "marker";
+              const allowDblClick = isEditMode || isMarker;
+
+              const propsShape = {
                 id: s.id,
                 ...s.props,
-                tool: tool, // Agregar esta línea
+                tool: tool,
                 isSelected:
+                  isEditMode &&
                   selectedShapeIds.includes(s.id) &&
                   selectedShapeIds.length === 1,
                 isInMultiSelection:
+                  isEditMode &&
                   selectedShapeIds.includes(s.id) &&
                   selectedShapeIds.length > 1,
-                onSelect: (e) => {
-                  if (tool === "select" && !isShapeLocked) {
-                    if (e && (e.evt.ctrlKey || e.evt.metaKey)) {
-                      toggleSelection(s.id);
-                    } else {
-                      setSelectedShape(s.id);
-                    }
-                  }
-                },
-                onTransformEnd: handleTransformEnd,
-                onDragEnd: handleShapeDragEnd,
-                onDoubleClick: () => handleShapeDoubleClick(s.id),
-                draggable: !isShapeLocked && selectedShapeIds.includes(s.id),
-                // Solo escuchar eventos si la herramienta es select Y no está bloqueado
-                listening: tool === "select" && !isShapeLocked,
+                draggable:
+                  isEditMode &&
+                  !isShapeLocked &&
+                  selectedShapeIds.includes(s.id),
+                listening: isEditMode && tool === "select" && !isShapeLocked,
                 isLocked: isShapeLocked,
-                onContextMenu: (e) => {
-                  if (tool === "select") {
-                    e.evt.preventDefault();
-                    setContextMenu(e, s.id);
-                  }
-                },
-                onTouchStart: handleTouchStart,
-                onTouchEnd: clearLongPress,
-                onTouchMove: clearLongPress,
+                ...(isEditMode
+                  ? {
+                      onSelect: (e) => {
+                        if (tool === "select" && !isShapeLocked) {
+                          if (e && (e.evt.ctrlKey || e.evt.metaKey)) {
+                            toggleSelection(s.id);
+                          } else {
+                            setSelectedShape(s.id);
+                            setActiveLayer(s.layerId);
+                          }
+                        }
+                      },
+                      onTransformEnd: handleTransformEnd,
+                      onDragEnd: handleShapeDragEnd,
+                      onDoubleClick: () => handleShapeDoubleClick(s.id),
+                      onContextMenu: (e) => {
+                        if (tool === "select") {
+                          e.evt.preventDefault();
+                          setContextMenu(e, s.id);
+                        }
+                      },
+                      onTouchStart: handleTouchStart,
+                      onTouchEnd: clearLongPress,
+                      onTouchMove: clearLongPress,
+                    }
+                  : isMarker
+                  ? {
+                      // SOLO para markers en modo view
+                      onDoubleClick: () => handleShapeDoubleClick(s.id),
+                    }
+                  : {}),
               };
 
               switch (s.type) {
@@ -100,34 +122,32 @@ export default function CanvasLayers({
                     <FreeDrawShape
                       key={s.id}
                       onUpdate={({ id, props }) => updateShape(id, props)}
-                      {...props}
+                      {...propsShape}
                     />
                   );
                 case "line":
-                  return <LineShape key={s.id} {...props} />;
+                  return <LineShape key={s.id} {...propsShape} />;
                 case "arrow":
-                  return <ArrowShape key={s.id} {...props} />;
+                  return <ArrowShape key={s.id} {...propsShape} />;
                 case "rect":
-                  return <RectShape key={s.id} {...props} />;
+                  return <RectShape key={s.id} {...propsShape} />;
                 case "circle":
-                  return <CircleShape key={s.id} {...props} />;
+                  return <CircleShape key={s.id} {...propsShape} />;
                 case "text":
                   return (
                     <TextShape
                       key={s.id}
-                      {...props}
+                      {...propsShape}
                       autoEdit={s.id === autoEditTextId}
                       onChangeText={(id, newText) => {
                         updateShape(id, { text: newText });
-                        // Si quieres cerrar edición automática:
-                        // if (autoEditTextId === id) setAutoEditTextId(null);
                       }}
                     />
                   );
                 case "image":
-                  return <ImageShape key={s.id} {...props} />;
+                  return <ImageShape key={s.id} {...propsShape} />;
                 case "marker":
-                  return <MarkerIcon key={s.id} {...props} />;
+                  return <MarkerIcon key={s.id} {...propsShape} />;
                 default:
                   return null;
               }

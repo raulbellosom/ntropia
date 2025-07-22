@@ -1,6 +1,8 @@
 import React from "react";
 import { Image, Rect, Transformer } from "react-konva";
 import useImage from "use-image";
+import { API_URL } from "../../config";
+import { useDirectusImage } from "../../hooks/useDirectusImage";
 
 export default function ImageShape({
   id,
@@ -19,7 +21,9 @@ export default function ImageShape({
   listening = true,
   tool = "select",
 }) {
-  const [image] = useImage(src);
+  // Si src es id de Directus, genera la url:
+  const imageUrl = useDirectusImage(src);
+  const [image] = useImage(imageUrl);
   const shapeRef = React.useRef();
   const trRef = React.useRef();
 

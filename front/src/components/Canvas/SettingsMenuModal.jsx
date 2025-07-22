@@ -69,14 +69,46 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
 
   const handleExport = (type) => {
     if (!stageRef) return;
-    const uri = stageRef.toDataURL({
-      x: 0,
-      y: 0,
-      width: draft.width,
-      height: draft.height,
+
+    // Guarda zoom/pan actuales
+    const stage = stageRef;
+    const origScale = { x: stage.scaleX(), y: stage.scaleY() };
+    const origPos = { x: stage.x(), y: stage.y() };
+
+    // Offset del Group (mesa de trabajo)
+    const offset = window.__konvaOffset || { x: 0, y: 0 };
+    const width = canvasWidth;
+    const height = canvasHeight;
+
+    // Forzar Stage a escala 1 y sin pan
+    stage.scale({ x: 1, y: 1 });
+    stage.position({ x: 0, y: 0 });
+    stage.batchDraw();
+
+    // Opcional: forzar fondo blanco para JPG
+    const backgroundRect = stage.findOne("#background-rect");
+    const prevFill = backgroundRect ? backgroundRect.fill() : null;
+    if (type === "jpg" && backgroundRect) backgroundRect.fill("#fff");
+
+    // Exporta solo el área lógica
+    const uri = stage.toDataURL({
+      x: offset.x,
+      y: offset.y,
+      width,
+      height,
       pixelRatio: 3,
       mimeType: type === "jpg" ? "image/jpeg" : "image/png",
+      quality: type === "jpg" ? 1 : undefined,
     });
+
+    // Restaura todo a como estaba
+    stage.scale(origScale);
+    stage.position(origPos);
+    stage.batchDraw();
+    if (type === "jpg" && backgroundRect && prevFill)
+      backgroundRect.fill(prevFill);
+
+    // Descarga
     const link = document.createElement("a");
     link.download = `canvas.${type}`;
     link.href = uri;
@@ -109,16 +141,23 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
   function handleBackgroundImageChange(e) {
     const file = e.target.files[0];
     if (!file) return;
-    const img = new window.Image();
-    img.src = URL.createObjectURL(file);
-    img.onload = () => {
-      setDraft((d) => ({
-        ...d,
-        width: Math.round(img.width),
-        height: Math.round(img.height),
-        backgroundImage: img.src,
-      }));
+
+    // Generar dataURL para que sí pase la condición de subida en handleSaveAll
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+      const dataUrl = ev.target.result;
+      const img = new window.Image();
+      img.src = dataUrl;
+      img.onload = () => {
+        setDraft((d) => ({
+          ...d,
+          width: Math.round(img.width),
+          height: Math.round(img.height),
+          backgroundImage: dataUrl, // <-- Aquí guardamos el dataURL
+        }));
+      };
     };
+    reader.readAsDataURL(file);
   }
 
   async function handleBackgroundPdfChange(e) {
@@ -369,15 +408,23 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
               <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
                 <Info size={18} /> About
               </h3>
-              <p className="text-sm">
-                <b>Desarrollado por Raul Belloso</b> <br />
+              <div className="text-sm">
+                <b>Desarrollado por Raul Belloso M</b> <br />
                 <span className="text-xs text-gray-500">
-                  Cualquier sugerencia o contacto en{" "}
+                  Cualquier sugerencia o contacto en <br />
                   <a
                     className="text-blue-500 underline"
                     href="https://racoondevs.com"
                   >
                     racoondevs.com
+                  </a>
+                  {/* mail */}
+                  <br />
+                  <a
+                    className="text-blue-500 underline"
+                    href="mailto:raul.belloso.m@gmail.com"
+                  >
+                    raul.belloso.m@gmail.com
                   </a>
                 </span>
                 <br />
@@ -442,7 +489,7 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                     Donar con Ko-fi
                   </a>
                 </div>
-              </p>
+              </div>
             </div>
           )}
         </section>

@@ -4,22 +4,33 @@ import RegisterPage from "./components/Auth/RegisterPage";
 import DashboardHome from "./components/Dashboard/DashboardHome";
 import WorkspacePage from "./components/Workspace/WorkspacePage";
 import ProtectedRoute from "./routes/ProtectedRoute";
-import MainLayout from "./layouts/MainLayout"; // <--- Nuevo layout principal
+import PublicRoute from "./routes/PublicRoute";
+import MainLayout from "./layouts/MainLayout";
+import CanvasLayout from "./layouts/CanvasLayout";
 
 export default function App() {
   return (
     <Routes>
-      {/* Rutas públicas */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      {/* Rutas públicas (solo accesibles si NO estás autenticado) */}
+      <Route element={<PublicRoute />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+      </Route>
 
-      {/* Rutas protegidas, todas bajo MainLayout */}
+      {/* Rutas protegidas (solo accesibles si ESTÁS autenticado) */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<DashboardHome />} />
           {/* Agrega aquí más rutas protegidas si quieres */}
         </Route>
-        <Route path="/workspace/:id" element={<WorkspacePage />} />
+        <Route
+          path="/workspace/:id"
+          element={
+            <CanvasLayout>
+              <WorkspacePage />
+            </CanvasLayout>
+          }
+        />
       </Route>
 
       {/* Ruta raíz */}

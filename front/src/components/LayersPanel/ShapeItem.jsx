@@ -19,11 +19,13 @@ export default function ShapeItem({
   setEditingValue,
   handleRenameShape,
   objects,
+  isEditMode,
+  setActiveLayer,
 }) {
   return (
     <Draggable
       draggableId={obj.id}
-      isDragDisabled={layerLocked}
+      isDragDisabled={!isEditMode || layerLocked}
       index={idx}
       key={obj.id}
     >
@@ -35,6 +37,7 @@ export default function ShapeItem({
           onClick={(e) => {
             e.stopPropagation();
             setSelectedShape(obj.id);
+            setActiveLayer(obj.layerId);
           }}
           className={classNames(
             "flex items-center group rounded px-2 py-1 transition",
@@ -57,33 +60,55 @@ export default function ShapeItem({
             </button>
             <span
               className="text-xs truncate"
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                setEditingId(obj.id);
-                setEditingValue(obj.name || obj.type || obj.id.slice(0, 8));
-              }}
-              onTouchStart={(e) => {
-                let timeout = setTimeout(() => {
-                  setEditingId(obj.id);
-                  setEditingValue(obj.name || obj.type || obj.id.slice(0, 8));
-                }, 500);
-                e.target.ontouchend = () => clearTimeout(timeout);
-                e.target.ontouchmove = () => clearTimeout(timeout);
-              }}
+              onDoubleClick={
+                isEditMode
+                  ? (e) => {
+                      e.stopPropagation();
+                      setEditingId(obj.id);
+                      setEditingValue(
+                        obj.name || obj.type || obj.id.slice(0, 8)
+                      );
+                    }
+                  : undefined
+              }
+              onTouchStart={
+                isEditMode
+                  ? (e) => {
+                      let timeout = setTimeout(() => {
+                        setEditingId(obj.id);
+                        setEditingValue(
+                          obj.name || obj.type || obj.id.slice(0, 8)
+                        );
+                      }, 500);
+                      e.target.ontouchend = () => clearTimeout(timeout);
+                      e.target.ontouchmove = () => clearTimeout(timeout);
+                    }
+                  : undefined
+              }
             >
               {editingId === obj.id ? (
                 <input
                   autoFocus
                   value={editingValue}
-                  onChange={(e) => setEditingValue(e.target.value)}
-                  onBlur={() => handleRenameShape(obj.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRenameShape(obj.id);
-                    if (e.key === "Escape") {
-                      setEditingId(null);
-                      setEditingValue("");
-                    }
-                  }}
+                  onChange={
+                    isEditMode
+                      ? (e) => setEditingValue(e.target.value)
+                      : undefined
+                  }
+                  onBlur={
+                    isEditMode ? () => handleRenameShape(obj.id) : undefined
+                  }
+                  onKeyDown={
+                    isEditMode
+                      ? (e) => {
+                          if (e.key === "Enter") handleRenameShape(obj.id);
+                          if (e.key === "Escape") {
+                            setEditingId(null);
+                            setEditingValue("");
+                          }
+                        }
+                      : undefined
+                  }
                   className="px-2 py-1 text-xs bg-slate-800 rounded text-white w-24"
                   style={{ minWidth: 60, maxWidth: 180 }}
                 />
@@ -92,7 +117,8 @@ export default function ShapeItem({
               )}
             </span>
           </div>
-          {!layerLocked && (
+          {/* Solo en modo edición los botones de reordenar y eliminar */}
+          {isEditMode && !layerLocked && (
             <>
               <button
                 className="ml-2 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"

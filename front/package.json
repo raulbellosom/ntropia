@@ -33,6 +33,7 @@
     "react-konva-utils": "^1.1.0",
     "react-responsive": "^10.0.1",
     "react-router-dom": "^7.6.3",
+    "react-tooltip": "^5.29.1",
     "tailwindcss": "^4.1.11",
     "use-image": "^1.1.4",
     "uuid": "^11.1.0",

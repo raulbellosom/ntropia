@@ -18,6 +18,7 @@ import ShapeItem from "./ShapeItem";
 export default function LayerItem({
   layer,
   idx,
+  isEditMode,
   isActive,
   isOpen,
   objects,
@@ -33,20 +34,20 @@ export default function LayerItem({
   moveLayerDown,
   toggleLayerVisibility,
   toggleLayerLock,
-  removeLayer,
   setLayerOpacity,
   toggleLayerOpen,
   setSelectedShape,
   toggleShapeVisibility,
   removeShape,
   handleRenameShape,
+  onRequestDelete,
 }) {
   const layerLocked = layer.locked;
 
   return (
     <Draggable
       draggableId={layer.id}
-      isDragDisabled={layerLocked}
+      isDragDisabled={!isEditMode || layerLocked}
       index={idx}
       key={layer.id}
     >
@@ -70,33 +71,51 @@ export default function LayerItem({
           {/* Título y acciones de capa */}
           <div className="flex items-center justify-between">
             <span
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                setEditingId(layer.id);
-                setEditingValue(layer.name);
-              }}
-              onTouchStart={(e) => {
-                let timeout = setTimeout(() => {
-                  setEditingId(layer.id);
-                  setEditingValue(layer.name);
-                }, 500);
-                e.target.ontouchend = () => clearTimeout(timeout);
-                e.target.ontouchmove = () => clearTimeout(timeout);
-              }}
+              onDoubleClick={
+                isEditMode
+                  ? (e) => {
+                      e.stopPropagation();
+                      setEditingId(layer.id);
+                      setEditingValue(layer.name);
+                    }
+                  : undefined
+              }
+              onTouchStart={
+                isEditMode
+                  ? (e) => {
+                      let timeout = setTimeout(() => {
+                        setEditingId(layer.id);
+                        setEditingValue(layer.name);
+                      }, 500);
+                      e.target.ontouchend = () => clearTimeout(timeout);
+                      e.target.ontouchmove = () => clearTimeout(timeout);
+                    }
+                  : undefined
+              }
             >
               {editingId === layer.id ? (
                 <input
                   autoFocus
                   value={editingValue}
-                  onChange={(e) => setEditingValue(e.target.value)}
-                  onBlur={() => handleRenameLayer(layer.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRenameLayer(layer.id);
-                    if (e.key === "Escape") {
-                      setEditingId(null);
-                      setEditingValue("");
-                    }
-                  }}
+                  onChange={
+                    isEditMode
+                      ? (e) => setEditingValue(e.target.value)
+                      : undefined
+                  }
+                  onBlur={
+                    isEditMode ? () => handleRenameLayer(layer.id) : undefined
+                  }
+                  onKeyDown={
+                    isEditMode
+                      ? (e) => {
+                          if (e.key === "Enter") handleRenameLayer(layer.id);
+                          if (e.key === "Escape") {
+                            setEditingId(null);
+                            setEditingValue("");
+                          }
+                        }
+                      : undefined
+                  }
                   className="px-2 py-1 bg-slate-800 rounded text-white w-32"
                   style={{ minWidth: 80, maxWidth: 180 }}
                 />
@@ -105,7 +124,7 @@ export default function LayerItem({
               )}
             </span>
             <div className="flex items-center gap-2 w-fit">
-              {!layer.locked && (
+              {isEditMode && !layer.locked && (
                 <>
                   <button
                     className="p-1 hover:bg-blue-800/40 rounded"
@@ -143,24 +162,24 @@ export default function LayerItem({
               >
                 {layer.visible ? <Eye size={17} /> : <EyeOff size={17} />}
               </button>
-              <button
-                className="hover:text-blue-300 transition"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleLayerLock(layer.id);
-                }}
-              >
-                {layer.locked ? <Lock size={17} /> : <Unlock size={17} />}
-              </button>
+              {isEditMode && (
+                <button
+                  className="hover:text-blue-300 transition"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleLayerLock(layer.id);
+                  }}
+                >
+                  {layer.locked ? <Lock size={17} /> : <Unlock size={17} />}
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-1">
-              {!layer.locked && (
+              {isEditMode && !layer.locked && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.confirm("¿Eliminar capa y todos sus objetos?")) {
-                      removeLayer(layer.id);
-                    }
+                    onRequestDelete();
                   }}
                   title="Eliminar capa"
                   className="ml-2 text-red-400 hover:text-red-600"
@@ -170,7 +189,7 @@ export default function LayerItem({
               )}
             </div>
           </div>
-          {/* Opacidad */}
+          {/* Opacidad SIEMPRE DISPONIBLE */}
           <div className="mt-3 flex flex-col gap-2 text-xs opacity-80">
             <div className="flex items-center justify-between flex-1">
               <span>Opacidad</span>
@@ -209,7 +228,11 @@ export default function LayerItem({
             <span>{objects.length} objetos</span>
           </button>
           {isOpen && (
-            <Droppable droppableId={layer.id} type="shape">
+            <Droppable
+              droppableId={layer.id}
+              type="shape"
+              isDropDisabled={!isEditMode}
+            >
               {(dropProvided) => (
                 <ul
                   ref={dropProvided.innerRef}
@@ -232,6 +255,8 @@ export default function LayerItem({
                       setEditingValue={setEditingValue}
                       handleRenameShape={handleRenameShape}
                       objects={objects}
+                      isEditMode={isEditMode}
+                      setActiveLayer={setActiveLayer}
                     />
                   ))}
                   {dropProvided.placeholder}

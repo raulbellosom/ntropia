@@ -7,17 +7,29 @@ import {
   LocateFixed,
   Undo,
   Redo,
+  Layers,
+  Hand as HandIcon,
 } from "lucide-react";
 import { useCanvasStore } from "../../store/useCanvasStore";
 import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
 
 export default function ToolbarControls() {
-  const { zoom, zoomIn, zoomOut, resetView, gridEnabled, toggleGrid } =
-    useCanvasStore();
+  const {
+    zoom,
+    zoomIn,
+    zoomOut,
+    resetView,
+    gridEnabled,
+    toggleGrid,
+    setTool,
+    tool,
+  } = useCanvasStore();
 
   const undo = useCanvasStore((s) => s.undo);
   const redo = useCanvasStore((s) => s.redo);
+  const toggleLayersPanel = useCanvasStore((s) => s.toggleLayersPanel);
+  const layersPanelVisible = useCanvasStore((s) => s.layersPanelVisible);
 
   const isMobile = useMediaQuery({ maxWidth: 768 });
 
@@ -37,6 +49,40 @@ export default function ToolbarControls() {
           maxWidth: isMobile ? "95vw" : "unset",
         }}
       >
+        {/* Botón de capas */}
+        <button
+          onClick={() => {
+            toggleLayersPanel();
+            setTool("select");
+          }}
+          title={
+            layersPanelVisible
+              ? "Ocultar capas (Shift+L)"
+              : "Mostrar capas (Shift+L)"
+          }
+          className={classNames(
+            "flex-shrink-0 text-white rounded p-2  transition-colors duration-200",
+            {
+              "bg-blue-600": layersPanelVisible,
+              " hover:bg-blue-500/90": !layersPanelVisible,
+            }
+          )}
+        >
+          <Layers size={20} />
+        </button>
+        <button
+          onClick={() => setTool("hand")}
+          title="Mover lienzo (H)"
+          className={classNames(
+            "p-2 rounded transition-colors duration-200 flex-shrink-0",
+            {
+              "bg-blue-600 text-white": tool === "hand",
+              "text-white hover:bg-blue-500/90": tool !== "hand",
+            }
+          )}
+        >
+          <HandIcon size={20} />
+        </button>
         <button
           onClick={undo}
           title="Deshacer (Ctrl+Z)"

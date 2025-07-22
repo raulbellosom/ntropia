@@ -177,9 +177,34 @@ export const useCanvasStore = create((set, get) => ({
   },
 
   // ---- Modo de edición ----
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => {
+    // Si cambiamos a modo view, limpiar selecciones
+    if (mode === "view") {
+      set({
+        mode,
+        selectedShapeId: null,
+        selectedShapeIds: [],
+        tool: "select", // resetear herramienta también
+      });
+    } else {
+      set({ mode });
+    }
+  },
+
   toggleMode: () =>
-    set((state) => ({ mode: state.mode === "edit" ? "view" : "edit" })),
+    set((state) => {
+      const newMode = state.mode === "edit" ? "view" : "edit";
+      // Si cambiamos a modo view, limpiar selecciones
+      if (newMode === "view") {
+        return {
+          mode: newMode,
+          selectedShapeId: null,
+          selectedShapeIds: [],
+          tool: "select",
+        };
+      }
+      return { mode: newMode };
+    }),
 
   // ---- Métodos canvas ----
   setTool: (tool) => set({ tool }),
@@ -334,11 +359,13 @@ export const useCanvasStore = create((set, get) => ({
         newLayers[idx],
         newLayers[idx - 1],
       ];
+      // Actualiza el campo order
+      newLayers.forEach((l, i) => {
+        l.order = i;
+        if (!l._isNew) l._dirty = true;
+      });
       return {
-        layers: newLayers.map((l, i) => ({
-          ...l,
-          _dirty: !l._isNew ? true : l._dirty,
-        })),
+        layers: newLayers,
       };
     });
   },
@@ -352,14 +379,17 @@ export const useCanvasStore = create((set, get) => ({
         newLayers[idx + 1],
         newLayers[idx],
       ];
+      // Actualiza el campo order
+      newLayers.forEach((l, i) => {
+        l.order = i;
+        if (!l._isNew) l._dirty = true;
+      });
       return {
-        layers: newLayers.map((l, i) => ({
-          ...l,
-          _dirty: !l._isNew ? true : l._dirty,
-        })),
+        layers: newLayers,
       };
     });
   },
+
   setLayerOpacity: (layerId, opacity) => {
     get().saveToHistory();
     set((state) => ({

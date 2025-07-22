@@ -18,12 +18,16 @@ import SelectBox from "./SelectBox";
 import MultiTransformer from "./MultiTransformer";
 import MarkerModal from "../Marker/MarkerModal";
 import { GRID_CELL_SIZE } from "../../utils/constants";
+import { useEditMode } from "../../hooks/useEditMode";
+import { toast } from "react-hot-toast";
+import useValidActiveLayer from "../../hooks/useValidActiveLayer";
 
 export default function CanvasStage() {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   const fileInputRef = useRef(null);
   const multiSelectRef = useRef(null);
+  const { isEditMode } = useEditMode();
 
   // Estado general
   const [dims, setDims] = useState({ width: 0, height: 0 });
@@ -55,6 +59,9 @@ export default function CanvasStage() {
     canvasHeight,
   } = useCanvasStore();
 
+  const validActiveLayer = useValidActiveLayer();
+  const hasActiveLayer = !!validActiveLayer;
+
   // Selections & multi
   const selectedShapeId = useCanvasStore((s) => s.selectedShapeId);
   const selectedShapeIds = useCanvasStore((s) => s.selectedShapeIds);
@@ -67,6 +74,7 @@ export default function CanvasStage() {
   const removeShape = useCanvasStore((s) => s.removeShape);
   const clipboardShape = useCanvasStore((s) => s.clipboardShape);
   const replaceShape = useCanvasStore((s) => s.replaceShape);
+  const setActiveLayer = useCanvasStore((s) => s.setActiveLayer);
 
   // Context menu hook
   const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
@@ -76,6 +84,7 @@ export default function CanvasStage() {
     x: (dims.width - canvasWidth) / 2,
     y: (dims.height - canvasHeight) / 2,
   };
+  window.__konvaOffset = offset;
   const [bgImg] = useImage(backgroundImage || "");
 
   // Función utilitaria para obtener posición real del canvas
@@ -115,7 +124,6 @@ export default function CanvasStage() {
   // Drawing hook (dibujo de figuras)
   const {
     isDrawing,
-    currentId,
     handleMouseDown: drawMouseDown,
     handleMouseMove: drawMouseMove,
     handleMouseUp: drawMouseUp,
@@ -236,6 +244,15 @@ export default function CanvasStage() {
       e.target === e.target.getStage() ||
       (e.target.id && e.target.id() === "background-rect");
 
+    // --- NUEVO: Evita dibujo si no hay capa activa válida ---
+    if (!hasActiveLayer && tool !== "select" && tool !== "hand") {
+      toast("Selecciona una capa antes de continuar", {
+        icon: "⚠️",
+        duration: 3500,
+      });
+      return;
+    }
+
     if (tool === "select" && isBackground) {
       if (!e.evt.ctrlKey && !e.evt.metaKey) {
         clearSelection();
@@ -265,17 +282,108 @@ export default function CanvasStage() {
   };
 
   const handleTransformEnd = (e) => {
+    // Selección múltiple (MultiTransformer)
+    if (selectedShapeIds.length > 1) {
+      selectedShapeIds.forEach((id) => {
+        const node = stageRef.current.findOne(`#${id}`);
+        if (!node) return;
+        const shape = shapes.find((s) => s.id === id);
+        if (!shape) return;
+
+        // Busca si la capa está bloqueada (isLocked)
+        const layer = layers.find((l) => l.id === shape.layerId);
+        const isLocked = layer && layer.locked;
+        if (isLocked) return;
+
+        const scaleX = node.scaleX();
+        const scaleY = node.scaleY();
+        const rotation = node.rotation();
+        const x = node.x();
+        const y = node.y();
+
+        switch (shape.type) {
+          case "arrow":
+            updateShape(id, {
+              x: x,
+              y: y,
+              points: shape.props.points.map((point, idx) =>
+                idx % 2 === 0 ? point * scaleX : point * scaleY
+              ),
+              rotation: rotation,
+            });
+            break;
+          case "line":
+            updateShape(id, {
+              x: x,
+              y: y,
+              points: shape.props.points.map((point, idx) =>
+                idx % 2 === 0 ? point * scaleX : point * scaleY
+              ),
+              rotation: rotation,
+            });
+            break;
+          case "freeDraw":
+            updateShape(id, {
+              x: x,
+              y: y,
+              points: shape.props.points.map((point, idx) =>
+                idx % 2 === 0 ? point * scaleX : point * scaleY
+              ),
+              rotation: rotation,
+            });
+            break;
+          case "rect":
+          case "image":
+          case "marker":
+            updateShape(id, {
+              x: x,
+              y: y,
+              width: Math.max(5, node.width() * scaleX),
+              height: Math.max(5, node.height() * scaleY),
+              rotation: rotation,
+            });
+            break;
+          case "text":
+            updateShape(id, {
+              x: x,
+              y: y,
+              width: Math.max(50, node.width() * scaleX),
+              height: Math.max(20, node.height() * scaleY),
+              fontSize: Math.max(8, (shape.props.fontSize || 16) * scaleX),
+              rotation: rotation,
+            });
+            break;
+          case "circle":
+            updateShape(id, {
+              x: x,
+              y: y,
+              radius: Math.max(5, shape.props.radius * scaleX),
+              rotation: rotation,
+            });
+            break;
+          default:
+            break;
+        }
+
+        // Reset transform para cada nodo
+        node.scaleX(1);
+        node.scaleY(1);
+        node.rotation(0);
+      });
+      // Guarda historial SOLO UNA VEZ después de todos los updates
+      saveToHistory();
+      return;
+    }
+
+    // Lógica original para transformación de una sola shape
     const node = e.target;
     if (!node || typeof node.id !== "function") return;
-
     const id = node.id();
     const shape = shapes.find((s) => s.id === id);
     if (!shape) return;
 
-    // Busca si la capa está bloqueada (isLocked)
     const layer = layers.find((l) => l.id === shape.layerId);
     const isLocked = layer && layer.locked;
-
     if (isLocked) return;
 
     const scaleX = node.scaleX();
@@ -286,98 +394,56 @@ export default function CanvasStage() {
 
     switch (shape.type) {
       case "arrow":
-        const arrowAttrs = {
+        updateShape(id, {
           x: x,
           y: y,
-          points: shape.props.points.map((point, index) => {
-            if (index % 2 === 0) {
-              // coordenada x
-              return point * scaleX;
-            } else {
-              // coordenada y
-              return point * scaleY;
-            }
-          }),
+          points: shape.props.points.map((point, idx) =>
+            idx % 2 === 0 ? point * scaleX : point * scaleY
+          ),
           rotation: rotation,
-        };
-        updateShape(id, arrowAttrs);
-        node.scaleX(1);
-        node.scaleY(1);
-        node.rotation(0);
+        });
         break;
       case "line":
-        const lineAttrs = {
+        updateShape(id, {
           x: x,
           y: y,
-          points: shape.props.points.map((point, index) => {
-            if (index % 2 === 0) {
-              // coordenada x
-              return point * scaleX;
-            } else {
-              // coordenada y
-              return point * scaleY;
-            }
-          }),
+          points: shape.props.points.map((point, idx) =>
+            idx % 2 === 0 ? point * scaleX : point * scaleY
+          ),
           rotation: rotation,
-        };
-        updateShape(id, lineAttrs);
-        node.scaleX(1);
-        node.scaleY(1);
-        node.rotation(0);
+        });
         break;
       case "freeDraw":
-        const freeDrawAttrs = {
+        updateShape(id, {
           x: x,
           y: y,
-          points: shape.props.points.map((point, index) => {
-            if (index % 2 === 0) {
-              // coordenada x
-              return point * scaleX;
-            } else {
-              // coordenada y
-              return point * scaleY;
-            }
-          }),
+          points: shape.props.points.map((point, idx) =>
+            idx % 2 === 0 ? point * scaleX : point * scaleY
+          ),
           rotation: rotation,
-        };
-        updateShape(id, freeDrawAttrs);
-        node.scaleX(1);
-        node.scaleY(1);
-        node.rotation(0);
+        });
         break;
       case "rect":
       case "image":
-      case "marker": // Asegura soporte para marker
-        const newAttrs = {
+      case "marker":
+        updateShape(id, {
           x: x,
           y: y,
           width: Math.max(5, node.width() * scaleX),
           height: Math.max(5, node.height() * scaleY),
           rotation: rotation,
-        };
-
-        updateShape(id, newAttrs);
-        node.scaleX(1);
-        node.scaleY(1);
-        node.rotation(0);
+        });
         break;
-
       case "text":
-        const textAttrs = {
+        updateShape(id, {
           x: x,
           y: y,
           width: Math.max(50, node.width() * scaleX),
           height: Math.max(20, node.height() * scaleY),
           fontSize: Math.max(8, (shape.props.fontSize || 16) * scaleX),
           rotation: rotation,
-        };
-
-        updateShape(id, textAttrs);
-        node.scaleX(1);
-        node.scaleY(1);
-        node.rotation(0);
+        });
         break;
-
       case "circle":
         updateShape(id, {
           x: x,
@@ -385,14 +451,14 @@ export default function CanvasStage() {
           radius: Math.max(5, shape.props.radius * scaleX),
           rotation: rotation,
         });
-        node.scaleX(1);
-        node.scaleY(1);
-        node.rotation(0);
         break;
-
       default:
         break;
     }
+
+    node.scaleX(1);
+    node.scaleY(1);
+    node.rotation(0);
 
     saveToHistory();
   };
@@ -546,6 +612,7 @@ export default function CanvasStage() {
               setContextMenu={showContextMenu}
               autoEditTextId={autoEditTextId}
               updateShape={updateShape}
+              setActiveLayer={setActiveLayer}
             />
 
             {/* Rectángulo de selección */}
@@ -555,7 +622,7 @@ export default function CanvasStage() {
           {/* Transformer múltiple */}
           <MultiTransformer
             transformerRef={multiSelectRef}
-            enabled={selectedShapeIds.length > 1}
+            enabled={isEditMode && selectedShapeIds.length > 1}
           />
         </Layer>
       </Stage>

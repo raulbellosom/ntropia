@@ -1,20 +1,40 @@
-// front/src/services/files.js
 import api from "./api";
 
-// Get all files for a workspace
-export const getFiles = (workspaceId) =>
-  api.get(
-    `/items/files?filter[workspace_id][_eq]=${workspaceId}&sort=-created_at`
-  );
+/** Listar archivos (puedes agregar filtros, búsqueda, etc) */
+export const getFiles = (params = {}) => {
+  // params: { limit, offset, sort, filter, search, fields, meta }
+  return api.get("/files", { params });
+};
 
-// Get a single file
-export const getFile = (id) => api.get(`/items/files/${id}`);
+/** Obtener un archivo por id */
+export const getFile = (id, params = {}) => {
+  return api.get(`/files/${id}`, { params });
+};
 
-// Upload a file (usa formData si subes archivos reales)
-export const createFile = (data) => api.post("/items/files", data);
+/** Subir un archivo (usa FormData, NO JSON) */
+export const uploadFile = (file, fileName = "image.png") => {
+  const formData = new FormData();
+  formData.append("file", file, fileName);
+  return api.post("/files", formData); // Axios maneja Content-Type solo
+};
 
-// Update file metadata
-export const updateFile = (id, data) => api.patch(`/items/files/${id}`, data);
+/** Importar un archivo desde una URL externa */
+export const importFile = (url, otherData = {}) => {
+  // otherData: puede incluir los mismos campos que upload
+  return api.post("/files/import", { url, ...otherData });
+};
 
-// Delete a file
-export const deleteFile = (id) => api.delete(`/items/files/${id}`);
+/** Actualizar metadata (título, tags, etc) de un archivo */
+export const updateFile = (id, data) => {
+  return api.patch(`/files/${id}`, data);
+};
+
+/** Eliminar un archivo por id */
+export const deleteFile = (id) => {
+  return api.delete(`/files/${id}`);
+};
+
+/** Eliminar varios archivos por array de ids */
+export const deleteFiles = (ids = []) => {
+  return api.delete(`/files`, { data: ids }); // Directus acepta DELETE con body (array de ids)
+};

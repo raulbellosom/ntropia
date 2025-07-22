@@ -2,7 +2,6 @@
 import { useEffect } from "react";
 import { useCanvasStore } from "../store/useCanvasStore";
 
-// Opcional: si quieres más legibilidad, puedes pasar los deps como argumento
 export default function useCanvasShortcuts({
   autoEditTextId,
   setAutoEditTextId,
@@ -16,27 +15,36 @@ export default function useCanvasShortcuts({
   removeSelectedShapes,
   tool,
 }) {
+  const mode = useCanvasStore((s) => s.mode);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Si estamos en un input, contentEditable, o editando texto, ignorar atajos
+      // --- IGNORA shortcuts si el foco está en input, textarea, select o contentEditable ---
+      const tag = e.target.tagName?.toUpperCase();
       if (
-        e.target.tagName === "INPUT" ||
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
         e.target.isContentEditable ||
         autoEditTextId !== null
       ) {
         return;
       }
 
-      // Eliminar figuras seleccionadas
-      if ((e.key === "Delete" || e.key === "Backspace") && tool === "select") {
+      // Eliminar figuras seleccionadas (solo en edit)
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        tool === "select" &&
+        mode === "edit"
+      ) {
         if (selectedShapeIds.length > 0) {
           removeSelectedShapes();
         }
         return;
       }
 
-      // Atajos con Ctrl/Meta (Cmd en Mac)
-      if (e.ctrlKey || e.metaKey) {
+      // Atajos con Ctrl/Meta (Cmd en Mac) (solo en edit)
+      if (mode === "edit" && (e.ctrlKey || e.metaKey)) {
         if (e.key.toLowerCase() === "c" && selectedShapeId) {
           e.preventDefault();
           copyShape(selectedShapeId);
@@ -50,8 +58,8 @@ export default function useCanvasShortcuts({
         return;
       }
 
-      // Toggle Layers Panel (Shift + L)
-      if (e.shiftKey && e.key.toLowerCase() === "l") {
+      // Toggle Layers Panel (Shift + L) (solo en edit)
+      if (mode === "edit" && e.shiftKey && e.key.toLowerCase() === "l") {
         e.preventDefault();
         toggleLayersPanel();
         useCanvasStore.getState().setTool("select");
@@ -59,6 +67,15 @@ export default function useCanvasShortcuts({
       }
 
       // Shortcuts de herramienta rápida (sin Ctrl)
+      if (e.key === "h") {
+        // Hand se permite SIEMPRE
+        useCanvasStore.getState().setTool("hand");
+        return;
+      }
+
+      // Otras herramientas SOLO en modo edit
+      if (mode !== "edit") return;
+
       switch (e.key) {
         case "a":
           useCanvasStore.getState().setTool("arrow");
@@ -86,9 +103,6 @@ export default function useCanvasShortcuts({
           break;
         case "m":
           useCanvasStore.getState().setTool("marker");
-          break;
-        case "h":
-          useCanvasStore.getState().setTool("hand");
           break;
         case "Escape":
           if (autoEditTextId) {
@@ -119,5 +133,6 @@ export default function useCanvasShortcuts({
     toggleLayersPanel,
     removeSelectedShapes,
     tool,
+    mode,
   ]);
 }
