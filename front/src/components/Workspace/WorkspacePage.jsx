@@ -224,6 +224,7 @@ export default function WorkspacePage() {
           name: finalShape.name,
           order: typeof finalShape.order === "number" ? finalShape.order : i,
           layer_id: layerIdReal,
+          workspace_id: workspaceId,
           data: finalShape.props,
           type: finalShape.type,
         };

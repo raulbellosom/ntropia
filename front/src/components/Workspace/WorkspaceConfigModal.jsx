@@ -79,7 +79,7 @@ export default function WorkspaceConfigModal({
       await createInvitation.mutateAsync({
         email: inviteEmail,
         workspace_id: workspace.id,
-        invited_by: user.id, // <-- Asegúrate de pasar esto
+        invited_by: user.id,
       });
       toast.success("Invitación enviada");
       setInviteEmail("");

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./components/Auth/LoginPage";
 import RegisterPage from "./components/Auth/RegisterPage";
+import AcceptInvitationPage from "./components/Auth/AcceptInvitationPage";
 import DashboardHome from "./components/Dashboard/DashboardHome";
 import WorkspacePage from "./components/Workspace/WorkspacePage";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -15,6 +16,7 @@ export default function App() {
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
       </Route>
 
       {/* Rutas protegidas (solo accesibles si ESTÁS autenticado) */}

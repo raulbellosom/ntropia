@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   db:
     image: mysql:8
@@ -17,23 +15,31 @@ services:
     depends_on:
       - db
     ports:
-      - 8055:8055
+      - "8055:8055"
+    env_file:
+      - .env
     environment:
-      SECRET: mysupersecretkey
-      PUBLIC_URL: http://localhost:8055
-      ADMIN_EMAIL: admin@demo.com
-      ADMIN_PASSWORD: 12345678
-      DB_CLIENT: mysql
-      DB_HOST: db
-      DB_PORT: 3306
-      DB_DATABASE: directus
-      DB_USER: directus
-      DB_PASSWORD: directus
-      CORS_ENABLED: "true"
-      CORS_ORIGIN: "http://localhost:5173"
+      - SECRET=${SECRET}
+      - PUBLIC_URL=${PUBLIC_URL}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - DB_CLIENT=${DB_CLIENT}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - CORS_ENABLED=${CORS_ENABLED}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - EXTENSIONS_AUTO_RELOAD=${EXTENSIONS_AUTO_RELOAD}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
     volumes:
       - directus_data:/data
-      - ./extensions:/directus/extensions # <-- AGREGAR ESTA LÍNEA
+      - ./extensions:/directus/extensions
     restart: unless-stopped
 
 volumes:
