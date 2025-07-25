@@ -5,6 +5,7 @@ import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useLogin } from "../../hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
+import NtropiaLogo from "../Logo/NtropiaLogo";
 
 const PHRASES = [
   "¡Nos alegra verte de vuelta!",
@@ -51,7 +52,7 @@ export default function LoginPage() {
         transition={{ duration: 0.4 }}
       >
         <div className="flex flex-col items-center mb-6">
-          <LogIn className="h-12 w-12 text-sky-600 mb-2 animate-pulse" />
+          <NtropiaLogo className="h-12 w-12  text-sky-600 mb-2 animate-pulse" />
           <h2 className="text-2xl font-bold text-gray-800">Iniciar Sesión</h2>
           <motion.p
             className="text-gray-500 text-sm"

@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import clsx from "clsx";
+import NtropiaLogo from "../components/Logo/NtropiaLogo";
 
 const navLinks = [
   { to: "/dashboard", label: "Inicio", icon: Home },
@@ -60,7 +61,7 @@ export default function MainLayout() {
               className="flex items-center gap-2 cursor-pointer"
               onClick={() => navigate("/dashboard")}
             >
-              <LayoutGrid className="text-[#2563eb] h-7 w-7 drop-shadow" />
+              <NtropiaLogo className="h-12 w-12 " />
               <span className="text-2xl font-extrabold tracking-tight text-white drop-shadow">
                 Ntropia
               </span>

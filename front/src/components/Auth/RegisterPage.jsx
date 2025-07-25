@@ -4,6 +4,7 @@ import { UserPlus, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { useRegister } from "../../hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
+import NtropiaLogo from "../Logo/NtropiaLogo";
 
 const PHRASES = [
   "¡Regístrate y crea sin límites!",
@@ -76,7 +77,7 @@ export default function RegisterPage() {
         transition={{ duration: 0.4 }}
       >
         <div className="flex flex-col items-center mb-6">
-          <UserPlus className="h-12 w-12 text-purple-600 mb-2 animate-pulse" />
+          <NtropiaLogo className="h-12 w-12 mb-2 animate-pulse" />
           <h2 className="text-2xl font-bold text-gray-800">Crear Cuenta</h2>
           <motion.p
             className="text-gray-500 text-sm"

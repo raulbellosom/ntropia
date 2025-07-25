@@ -1,9 +1,10 @@
 // src/layouts/CanvasLayout.jsx
 import { Toaster } from "react-hot-toast";
+import NtropiaLogo from "../components/Logo/NtropiaLogo";
 
 export default function CanvasLayout({ children }) {
   return (
-    <div className="w-full h-full min-h-screen bg-slate-900">
+    <div className="w-full h-full min-h-screen bg-slate-900 relative">
       <Toaster
         position="top-center"
         toastOptions={{
@@ -12,6 +13,7 @@ export default function CanvasLayout({ children }) {
         }}
       />
       {children}
+      <NtropiaLogo className="absolute bottom-4 left-4 h-12 w-12 opacity-25" />
     </div>
   );
 }

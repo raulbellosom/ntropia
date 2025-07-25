@@ -1,21 +1,10 @@
-import {
-  PlusCircle,
-  UserCircle,
-  Users,
-  Pencil,
-  Loader2,
-  Trash2,
-  Settings2,
-  Lock,
-  WholeWord,
-} from "lucide-react";
+import React, { useState } from "react";
+import { PlusCircle, UserCircle, Pencil, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import CreateWorkspaceModal from "../Workspace/WorkspaceModal";
 import useAuthStore from "../../store/useAuthStore";
 import { useDeleteWorkspace, useWorkspaces } from "../../hooks/useWorkspaces";
 import { useNavigate } from "react-router-dom";
-import React, { useState } from "react";
-import WorkspaceMembers from "../Workspace/WorkspaceMembers";
 import ModalWrapper from "../common/ModalWrapper";
 import { useDeleteFiles } from "../../hooks/useFiles";
 import { toast } from "react-hot-toast";
