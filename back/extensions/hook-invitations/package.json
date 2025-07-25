@@ -28,6 +28,7 @@
     "@directus/extensions-sdk": "14.0.0"
   },
   "dependencies": {
+    "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.5"
   }
 }

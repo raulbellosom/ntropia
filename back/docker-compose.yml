@@ -42,6 +42,18 @@ services:
       - ./extensions:/directus/extensions
     restart: unless-stopped
 
+  socket-server:
+    build:
+      context: ./socket-server
+    volumes:
+      - ./socket-server:/app
+    ports:
+      - "4001:4001"
+    environment:
+      - FRONTEND_URL=${FRONTEND_URL}
+    depends_on:
+      - directus
+
 volumes:
   db_data:
   directus_data:

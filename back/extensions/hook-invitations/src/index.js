@@ -1,5 +1,5 @@
 // back/extensions/hooks/invitations-hook/index.js
-
+import fetch from "node-fetch";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
@@ -110,6 +110,24 @@ export default ({ filter, action }) => {
             </table>
           `,
         });
+        try {
+          await fetch(`${process.env.SOCKET_SERVER_URL}/emit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: payload.email,
+              type: "new-invitation",
+              data: {
+                workspaceName,
+                inviterName,
+                token: payload.token,
+              },
+            }),
+          });
+          console.log("📤 Notificación enviada a socket-server");
+        } catch (error) {
+          console.error("❌ Error enviando a socket-server:", error.message);
+        }
         console.log("✅ Correo enviado a", payload.email);
       } catch (err) {
         console.error("❌ Error enviando correo:", err);

@@ -1,1 +1,3 @@
 */.env
+# ignora todos los node_modules dentro de cualquier directorio
+node_modules/

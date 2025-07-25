@@ -21,8 +21,10 @@ import { useDeleteFiles } from "../../hooks/useFiles";
 import { toast } from "react-hot-toast";
 import WorkspaceConfigModal from "../Workspace/WorkspaceConfigModal";
 import WorkspaceCard from "../Workspace/WorkspaceCard";
+import { useSocketNotifications } from "../../hooks/useSocketNotifications";
 
 export default function DashboardHome() {
+  useSocketNotifications();
   const user = useAuthStore((s) => s.user);
   const {
     data: workspacesData,
