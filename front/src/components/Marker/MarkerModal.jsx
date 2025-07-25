@@ -3,15 +3,21 @@ import ModalWrapper from "../common/ModalWrapper";
 import { useCanvasStore } from "../../store/useCanvasStore";
 import { useDropzone } from "react-dropzone";
 import IconColorPicker from "../common/IconColorPicker";
-import { Droplet, X } from "lucide-react";
+import {
+  ChevronLeftCircle,
+  ChevronRightCircle,
+  Droplet,
+  XCircle,
+} from "lucide-react";
 import { useEditMode } from "../../hooks/useEditMode";
-import { API_URL } from "../../config";
+import ImageWithDirectusUrl from "../common/ImageWithDirectusUrl";
 
 export default function MarkerModal({
   shapeId,
   onClose,
   viewOnly: viewOnlyProp,
 }) {
+  const lightboxContentRef = useRef(null);
   const updateShape = useCanvasStore((state) => state.updateShape);
   const shapes = useCanvasStore((state) => state.shapes);
   const marker = shapes.find((s) => s.id === shapeId && s.type === "marker");
@@ -77,14 +83,6 @@ export default function MarkerModal({
 
   if (!marker) return null;
 
-  // Utilidad para mostrar imágenes: ID de backend o base64
-  const getImageUrl = (src) => {
-    if (!src) return "";
-    if (/^data:/.test(src)) return src; // base64 local
-    // Si es un ID del backend
-    return `${API_URL}/assets/${src}`;
-  };
-
   // --- Lightbox handlers ---
   const handleWheel = (e) => {
     let nextZoom = zoom + (e.deltaY < 0 ? 0.15 : -0.15);
@@ -147,6 +145,7 @@ export default function MarkerModal({
         isOpen={Boolean(marker)}
         onClose={onClose}
         title={viewOnly ? "Detalle de Marcador" : "Editar Marcador"}
+        disableOutsideClick={lightboxIndex !== null}
       >
         <div className="space-y-4">
           {/* Color */}
@@ -252,8 +251,8 @@ export default function MarkerModal({
                     justifyContent: "center",
                   }}
                 >
-                  <img
-                    src={getImageUrl(src)}
+                  <ImageWithDirectusUrl
+                    src={src}
                     alt={`preview-${i}`}
                     className="object-cover w-full h-full rounded"
                     style={{ width: 64, height: 64 }}
@@ -288,24 +287,59 @@ export default function MarkerModal({
           className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/90"
           style={{ cursor: zoom > 1 ? "grab" : "zoom-in" }}
           tabIndex={0}
-          // Solo cierra si el usuario da click FUERA de la imagen, no durante el drag
           onClick={(e) => {
-            // Solo cierra si el target es este div, no la imagen ni hijos
-            if (e.target === e.currentTarget) setLightboxIndex(null);
+            if (
+              lightboxContentRef.current &&
+              !lightboxContentRef.current.contains(e.target)
+            ) {
+              setLightboxIndex(null);
+            }
           }}
         >
           {/* Botón cerrar */}
           <button
-            className="absolute top-8 right-8 z-50 text-white bg-black/30 rounded-full p-2 hover:bg-black/50"
+            className="absolute cursor-pointer top-8 right-8 z-50 text-white bg-black/30 rounded-full p-2 hover:bg-black/50"
             onClick={(e) => {
               e.stopPropagation();
               setLightboxIndex(null);
             }}
           >
-            <X size={28} />
+            <XCircle size={28} />
           </button>
-          {/* Contenedor de imagen para el zoom y drag */}
+
+          {/* Botón anterior */}
+          {images.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((prev) =>
+                  prev > 0 ? prev - 1 : images.length - 1
+                );
+              }}
+              className="absolute cursor-pointer left-4 top-1/2 transform -translate-y-1/2 z-50 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full"
+            >
+              <ChevronLeftCircle size={28} />
+            </button>
+          )}
+
+          {/* Botón siguiente */}
+          {images.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((prev) =>
+                  prev < images.length - 1 ? prev + 1 : 0
+                );
+              }}
+              className="absolute cursor-pointer right-4 top-1/2 transform -translate-y-1/2 z-50 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full"
+            >
+              <ChevronRightCircle size={28} />
+            </button>
+          )}
+
+          {/* Contenedor de imagen */}
           <div
+            ref={lightboxContentRef}
             className="relative"
             style={{
               width: "100vw",
@@ -316,7 +350,6 @@ export default function MarkerModal({
               overflow: "visible",
               touchAction: "none",
             }}
-            // Handlers de zoom y drag (idénticos a antes)
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -327,8 +360,8 @@ export default function MarkerModal({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            <img
-              src={getImageUrl(images[lightboxIndex])}
+            <ImageWithDirectusUrl
+              src={images[lightboxIndex]}
               alt={`full-${lightboxIndex}`}
               className="select-none rounded-lg shadow-2xl"
               style={{

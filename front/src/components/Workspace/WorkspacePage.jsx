@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Toolbar from "../Toolbar/Toolbar";
 import LayersPanel from "../LayersPanel/LayersPanel";
@@ -24,11 +24,12 @@ import WorkspaceLoader from "../common/WorkspaceLoader";
 import { toast } from "react-hot-toast";
 import { generateId } from "../../utils/id";
 import { API_URL } from "../../config";
+import api from "../../services/api";
 
 export default function WorkspacePage() {
   const { id: workspaceId } = useParams();
   const navigate = useNavigate();
-
+  const bgUrlRef = useRef(null);
   // Datos del backend
   const { data: workspace, isLoading: loadingWorkspace } =
     useWorkspace(workspaceId);
@@ -77,31 +78,27 @@ export default function WorkspacePage() {
 
   // 2. Cuando llegan los layers del backend, hidrata Zustand SOLO si hay datos nuevos
   useEffect(() => {
-    if (backendLayers) setAllLayers(backendLayers);
-  }, [backendLayers, setAllLayers]);
+    if (!backendLayers) return;
+    setAllLayers(backendLayers);
+  }, [backendLayers]);
 
   // 3. Cuando llegan los shapes del backend, hidrata Zustand SOLO si hay datos nuevos
   useEffect(() => {
-    if (backendShapes) {
-      // Mapear backend → frontend
-      const shapesFrontend = backendShapes.map((s) => ({
-        ...s,
-        id: String(s.id), // <- convierte id a string
-        props: s.data,
-        layerId: String(s.layer_id), // <- convierte layerId a string
-      }));
-      setAllShapes(shapesFrontend);
-    }
-  }, [backendShapes, setAllShapes]);
+    if (!backendLayers || !backendShapes) return;
+
+    const shapesFrontend = backendShapes.map((s) => ({
+      ...s,
+      id: String(s.id),
+      props: s.data,
+      layerId: String(s.layer_id),
+    }));
+    setAllShapes(shapesFrontend);
+  }, [backendLayers, backendShapes]);
 
   // 4. Hidrata background/color/size cuando llegan los datos del workspace
   useEffect(() => {
-    if (workspace) {
-      setBackgroundImage(
-        workspace.background
-          ? `${API_URL}/assets/${workspace.background}`
-          : null
-      );
+    async function loadBackground() {
+      if (!workspace) return;
 
       if (workspace.backgroundColor)
         setBackgroundColor(workspace.backgroundColor);
@@ -110,8 +107,38 @@ export default function WorkspacePage() {
           width: workspace.canvasWidth,
           height: workspace.canvasHeight,
         });
+
+      if (workspace.background) {
+        try {
+          const res = await api.get(`/assets/${workspace.background}`, {
+            responseType: "blob",
+          });
+
+          // 🔥 Limpia la anterior si existía
+          if (bgUrlRef.current) {
+            URL.revokeObjectURL(bgUrlRef.current);
+          }
+
+          // ✅ Crea nueva y guárdala
+          const objectURL = URL.createObjectURL(res.data);
+          bgUrlRef.current = objectURL;
+          setBackgroundImage(objectURL);
+        } catch (err) {
+          console.error("No se pudo cargar el fondo:", err);
+          setBackgroundImage(null);
+        }
+      } else {
+        // 🔥 Limpia si se quita la imagen de fondo
+        if (bgUrlRef.current) {
+          URL.revokeObjectURL(bgUrlRef.current);
+          bgUrlRef.current = null;
+        }
+        setBackgroundImage(null);
+      }
     }
-  }, [workspace, setBackgroundImage, setBackgroundColor, setCanvasSize]);
+
+    loadBackground();
+  }, [workspace]);
 
   // ----- GUARDAR TODO -----
   async function handleSaveAll() {
@@ -253,15 +280,6 @@ export default function WorkspacePage() {
 
       clearAllFlags();
       toast.success("¡Canvas guardado exitosamente!");
-      console.log(
-        "[Guardar todo] OK: background",
-        backgroundId,
-        "color",
-        backgroundColor,
-        "size",
-        canvasWidth,
-        canvasHeight
-      );
     } catch (err) {
       toast.error("Ocurrió un error al guardar. Intenta de nuevo.");
       console.error("Error al guardar todo:", err);

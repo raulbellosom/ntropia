@@ -10,5 +10,5 @@ export default function useValidActiveLayer() {
   const activeLayerId = useCanvasStore((s) => s.activeLayerId);
   const layers = useCanvasStore((s) => s.layers);
   // Busca si existe y está visible
-  return layers.find((l) => l.id === activeLayerId && l.visible) || null;
+  return layers.find((l) => l.id === activeLayerId) || null;
 }

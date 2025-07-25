@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from "react";
-import { Image, Rect, Transformer } from "react-konva";
+import React, { useRef, useEffect, useState } from "react";
+import { Image, Rect, Transformer, Label, Tag, Text } from "react-konva";
 import useImage from "use-image";
 import { useCanvasStore } from "../../store/useCanvasStore";
 
@@ -26,13 +26,19 @@ export default function MarkerIcon({
   onContextMenu,
 }) {
   const zoom = useCanvasStore((state) => state.zoom);
+  const shapes = useCanvasStore((state) => state.shapes); // Para leer props.title
+  const marker = shapes.find((s) => s.id === id && s.type === "marker");
+  const title = marker?.props?.title || "";
+
   const size = 32;
   const svgString = getMarkerSvg(color, size);
   const svgBase64 = "data:image/svg+xml;base64," + btoa(svgString);
   const [image] = useImage(svgBase64);
   const shapeRef = useRef();
   const trRef = useRef();
+  const [showTooltip, setShowTooltip] = useState(false);
 
+  // Transform sync
   useEffect(() => {
     if (isSelected && shapeRef.current && trRef.current) {
       trRef.current.nodes([shapeRef.current]);
@@ -40,13 +46,10 @@ export default function MarkerIcon({
     }
   }, [isSelected]);
 
-  // --- FIXED DRAG ---
   const handleDragEnd = (e) => {
     const node = e.target;
-    // Recupera la posición visual donde soltaste el marker
     const visualX = node.x();
     const visualY = node.y();
-    // Regresa a coordenadas de canvas (antes de escalar)
     const newX = (visualX + size / 2) * zoom;
     const newY = (visualY + size) * zoom;
     if (onDragEnd) {
@@ -64,7 +67,6 @@ export default function MarkerIcon({
 
   return (
     <>
-      {/* Rect invisible para hit test y selección múltiple */}
       <Rect
         x={x - size / 2}
         y={y - size}
@@ -100,18 +102,44 @@ export default function MarkerIcon({
         onMouseEnter={(e) => {
           const stage = e.target.getStage();
           stage.container().style.cursor = "move";
+          setShowTooltip(true);
         }}
         onMouseLeave={(e) => {
           const stage = e.target.getStage();
           stage.container().style.cursor = "default";
+          setShowTooltip(false);
         }}
       />
       {isSelected && (
-        <Transformer
-          ref={trRef}
-          enabledAnchors={[]} // Sin anchors: NO resize, solo rotación
-          rotateEnabled={true}
-        />
+        <Transformer ref={trRef} enabledAnchors={[]} rotateEnabled={true} />
+      )}
+
+      {/* Tooltip */}
+      {showTooltip && title && (
+        <Label
+          x={x}
+          y={y - size - 10}
+          opacity={0.9}
+          listening={false}
+          scaleX={1 / zoom}
+          scaleY={1 / zoom}
+        >
+          <Tag
+            fill="black"
+            pointerDirection="down"
+            pointerWidth={10}
+            pointerHeight={10}
+            lineJoin="round"
+            cornerRadius={4}
+          />
+          <Text
+            text={title}
+            fontFamily="Arial"
+            fontSize={14}
+            padding={6}
+            fill="white"
+          />
+        </Label>
       )}
     </>
   );

@@ -126,7 +126,13 @@ export default function CanvasLayers({
                     />
                   );
                 case "line":
-                  return <LineShape key={s.id} {...propsShape} />;
+                  return (
+                    <LineShape
+                      key={s.id}
+                      {...propsShape}
+                      onUpdate={({ id, props }) => updateShape(id, props)}
+                    />
+                  );
                 case "arrow":
                   return <ArrowShape key={s.id} {...propsShape} />;
                 case "rect":

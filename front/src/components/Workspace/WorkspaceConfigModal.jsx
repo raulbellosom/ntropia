@@ -288,7 +288,7 @@ export default function WorkspaceConfigModal({
                 return (
                   <div
                     key={userM.id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50"
+                    className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600">
@@ -308,7 +308,7 @@ export default function WorkspaceConfigModal({
                           onChange={(e) =>
                             handleRoleChange(m.id, e.target.value)
                           }
-                          className={`text-xs font-medium px-2 py-1 rounded-lg border ${getRoleColor(
+                          className={`text-xs font-medium px-2 py-1 rounded-lg border border-gray-200 ${getRoleColor(
                             m.role
                           )}`}
                         >
@@ -318,7 +318,7 @@ export default function WorkspaceConfigModal({
                         </select>
                       ) : (
                         <span
-                          className={`text-xs font-medium px-2 py-1 rounded-full border ${getRoleColor(
+                          className={`text-xs font-medium px-2 py-1 rounded-full border border-gray-200 ${getRoleColor(
                             m.role
                           )}`}
                         >

@@ -8,7 +8,7 @@ export default function LineShape({
   y = 0,
   stroke = "#000",
   fill = "#000",
-  strokeWidth = 2,
+  strokeWidth = 30,
   tension = 0,
   draggable = true,
   rotation = 0,

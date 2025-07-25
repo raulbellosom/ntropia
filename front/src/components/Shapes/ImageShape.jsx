@@ -1,7 +1,6 @@
 import React from "react";
 import { Image, Rect, Transformer } from "react-konva";
 import useImage from "use-image";
-import { API_URL } from "../../config";
 import { useDirectusImage } from "../../hooks/useDirectusImage";
 
 export default function ImageShape({

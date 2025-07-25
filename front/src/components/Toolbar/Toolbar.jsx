@@ -128,6 +128,7 @@ export default function Toolbar() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const saveToHistory = useCanvasStore((s) => s.saveToHistory);
 
   const validActiveLayer = useValidActiveLayer();
   const hasActiveLayer = !!validActiveLayer;
