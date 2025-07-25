@@ -48,7 +48,7 @@ services:
     volumes:
       - ./socket-server:/app
     ports:
-      - "4001:4001"
+      - "4010:4010"
     environment:
       - FRONTEND_URL=${FRONTEND_URL}
     depends_on:
