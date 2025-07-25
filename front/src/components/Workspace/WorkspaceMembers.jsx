@@ -1,36 +1,35 @@
-// src/components/Workspace/WorkspaceMembers.jsx
-import { useWorkspaceMembers } from "../../hooks/useWorkspaceMembers";
-import { UserCircle } from "lucide-react";
+// front/src/components/Workspace/WorkspaceMembers.jsx
 import React from "react";
+import { UserCircle } from "lucide-react";
 import { Tooltip } from "react-tooltip";
+import { useWorkspaceMembers } from "../../hooks/useWorkspaceMembers";
 
 export default function WorkspaceMembers({ workspaceId, size = 6 }) {
-  const { data: members, isLoading } = useWorkspaceMembers(workspaceId);
+  const { data: members = [], isLoading } = useWorkspaceMembers(workspaceId);
 
   if (isLoading)
     return (
       <div className="flex gap-1 animate-pulse text-xs text-gray-400">...</div>
     );
-
-  if (!members || members.length === 0)
+  if (members.length === 0)
     return <span className="text-gray-300 text-xs">Sin miembros</span>;
-
   return (
     <div className="flex items-center -space-x-2">
       {members.slice(0, size).map((m) => {
         const user = m.user;
         const name =
           user?.first_name || (user?.email ? user.email.split("@")[0] : "S/N");
+        const keyId = user?.id || m.id; // fallback a m.id si no hay user.id
 
         return (
           <div
-            key={user.id}
-            data-tooltip-id={`member-tooltip-${workspaceId}`}
-            data-tooltip-content={user.email}
+            key={keyId}
+            data-tooltip-id={`member-tooltip-${workspaceId}-${keyId}`}
+            data-tooltip-content={user?.email}
             data-tooltip-place="top"
             className="cursor-pointer"
           >
-            {user.avatar ? (
+            {user?.avatar ? (
               <img
                 src={user.avatar}
                 alt={name}
@@ -43,6 +42,7 @@ export default function WorkspaceMembers({ workspaceId, size = 6 }) {
                 {name.charAt(0).toUpperCase()}
               </div>
             )}
+            <Tooltip id={`member-tooltip-${workspaceId}-${keyId}`} />
           </div>
         );
       })}
@@ -51,8 +51,6 @@ export default function WorkspaceMembers({ workspaceId, size = 6 }) {
           +{members.length - size}
         </span>
       )}
-      {/* Renderiza el tooltip UNA SOLA VEZ por workspaceId */}
-      <Tooltip id={`member-tooltip-${workspaceId}`} />
     </div>
   );
 }

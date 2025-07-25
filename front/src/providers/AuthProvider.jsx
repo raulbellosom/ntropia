@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo } from "react";
 import { LayoutGrid } from "lucide-react";
 import { motion } from "framer-motion";
 import useAuthStore from "../store/useAuthStore";
@@ -13,32 +13,16 @@ const PHRASES = [
 ];
 
 export default function AuthProvider({ children }) {
-  const { isLoading, error, data } = useCurrentUser();
+  const { isLoading, error } = useCurrentUser();
   const user = useAuthStore((s) => s.user);
 
   const phrase = useMemo(() => {
     return PHRASES[Math.floor(Math.random() * PHRASES.length)];
   }, []);
 
-  // Logs mejorados para debug
-  // useEffect(() => {
-  //   console.log("AuthProvider state:", {
-  //     isLoading,
-  //     hasError: !!error,
-  //     errorStatus: error?.response?.status,
-  //     hasData: !!data,
-  //     hasUser: !!user,
-  //     hasToken: !!localStorage.getItem("access_token"),
-  //     dataId: data?.id,
-  //     userId: user?.id,
-  //     // Nuevo: estado de sincronización
-  //     isDataUserSynced: !!data && !!user && data.id === user.id,
-  //   });
-  // }, [isLoading, error, data, user]);
-
   const hasToken = !!localStorage.getItem("access_token");
 
-  // Si hay error 401, no mostrar loading y permitir ir al login
+  // Si hay error 401, no mostrar loading
   if (error?.response?.status === 401) {
     return children;
   }
@@ -48,15 +32,8 @@ export default function AuthProvider({ children }) {
     return children;
   }
 
-  // Mejorar la condición de loading: esperar hasta que user y data estén sincronizados
-  const shouldShowLoading =
-    hasToken &&
-    (isLoading || // Está cargando
-      (!user && !error) || // No hay usuario y no hay error
-      (data && !user) || // Hay data pero no user (estado de transición)
-      (data && user && data.id !== user.id)); // Data y user no coinciden
-
-  if (shouldShowLoading) {
+  // Solo mostrar loading en primera carga y no hay usuario aún
+  if (hasToken && isLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#101726] via-[#232C47] to-[#1C2338]">
         <motion.div

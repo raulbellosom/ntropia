@@ -1,3 +1,4 @@
+// src/App.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./components/Auth/LoginPage";
 import RegisterPage from "./components/Auth/RegisterPage";
@@ -12,18 +13,19 @@ import CanvasLayout from "./layouts/CanvasLayout";
 export default function App() {
   return (
     <Routes>
-      {/* Rutas públicas (solo accesibles si NO estás autenticado) */}
+      {/* Público: solo login/register */}
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
       </Route>
 
-      {/* Rutas protegidas (solo accesibles si ESTÁS autenticado) */}
+      {/* Invitación: accesible siempre, incluso si ya estás logueado */}
+      <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
+
+      {/* Protegido: dashboard, workspaces, etc */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<DashboardHome />} />
-          {/* Agrega aquí más rutas protegidas si quieres */}
         </Route>
         <Route
           path="/workspace/:id"
@@ -35,7 +37,7 @@ export default function App() {
         />
       </Route>
 
-      {/* Ruta raíz */}
+      {/* Raíz */}
       <Route
         path="/"
         element={
@@ -46,7 +48,8 @@ export default function App() {
           )
         }
       />
-      {/* Ruta catch-all para 404 (opcional) */}
+
+      {/* 404 */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );

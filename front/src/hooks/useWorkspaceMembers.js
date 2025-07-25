@@ -7,7 +7,11 @@ export function useWorkspaceMembers(workspaceId) {
   return useQuery({
     queryKey: ["workspace_members", workspaceId],
     queryFn: () => members.getWorkspaceMembers(workspaceId),
-    select: (res) => res.data.data || [],
+    select: (res) =>
+      (res.data.data || []).map((m) => ({
+        ...m,
+        user: m.user_id, // reetiquetamos user_id ➞ user
+      })),
     enabled: !!workspaceId,
   });
 }

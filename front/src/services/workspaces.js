@@ -5,8 +5,14 @@ import api from "./api";
 export const getWorkspaces = () =>
   api.get("/items/workspaces?sort=-date_created");
 
+export const getAllUserWorkspaces = () => api.get("/endpoint-workspaces");
+
 // Get a single workspace
 export const getWorkspace = (id) => api.get(`/items/workspaces/${id}`);
+
+// Get a workspace by access Custom Endpoint
+export const getWorkspaceByAccess = (id) =>
+  api.get(`/endpoint-workspaces/${id}`);
 
 // Create a workspace
 export const createWorkspace = (data) => api.post("/items/workspaces", data);

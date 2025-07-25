@@ -1,12 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ws from "../services/workspaces";
+import useAuthStore from "../store/useAuthStore";
 
 // Todas las mesas
 export function useWorkspaces() {
+  const user = useAuthStore((s) => s.user);
+
   return useQuery({
     queryKey: ["workspaces"],
-    queryFn: ws.getWorkspaces,
-    select: (res) => res.data.data || [],
+    queryFn: ws.getAllUserWorkspaces,
+    enabled: !!user?.id,
+    select: (res) => {
+      const all = res.data.data || [];
+      const own = all.filter((w) => w.owner === user.id);
+      const invited = all.filter((w) => w.owner !== user.id);
+      return { own, invited };
+    },
   });
 }
 
@@ -14,9 +23,9 @@ export function useWorkspaces() {
 export function useWorkspace(id) {
   return useQuery({
     queryKey: ["workspace", id],
-    queryFn: () => ws.getWorkspace(id),
+    queryFn: () => ws.getWorkspaceByAccess(id),
     enabled: !!id,
-    select: (res) => res.data.data || null, // <-- ESTE SELECT desanida el objeto
+    select: (res) => res.data.data || null,
   });
 }
 

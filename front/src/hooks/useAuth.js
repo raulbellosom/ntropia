@@ -3,7 +3,7 @@ import * as authService from "../services/auth";
 import useAuthStore from "../store/useAuthStore";
 import { useEffect } from "react";
 
-// Login
+// Login - SIMPLIFICADO
 export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -12,6 +12,7 @@ export function useLogin() {
       const token = res.data.data.access_token;
       if (token) {
         localStorage.setItem("access_token", token);
+        // Solo invalidar, NO refetch inmediato
         queryClient.invalidateQueries({ queryKey: ["me"] });
       }
     },
@@ -31,7 +32,7 @@ export function useRegister() {
   });
 }
 
-// Obtener usuario actual con sincronización inmediata
+// Obtener usuario actual - SIMPLIFICADO
 export function useCurrentUser() {
   const setUser = useAuthStore((s) => s.setUser);
   const clearUser = useAuthStore((s) => s.clearUser);
@@ -50,27 +51,18 @@ export function useCurrentUser() {
     enabled: !!localStorage.getItem("access_token"),
     staleTime: 5 * 60 * 1000,
     cacheTime: 10 * 60 * 1000,
-    onSuccess: (data) => {
-      // Establecer usuario inmediatamente cuando llegan los datos
-      console.log("Usuario obtenido exitosamente:", data);
-      setUser(data);
-    },
-    onError: (error) => {
-      console.error("Error obteniendo usuario:", error);
-      if (error.response?.status === 401) {
-        console.log("Token inválido, limpiando sesión...");
-        clearUser();
-        localStorage.removeItem("access_token");
-      }
-    },
+    // CAMBIO: Solo refetch si realmente es necesario
+    refetchOnMount: true, // Cambiar de "always" a true
+    refetchOnWindowFocus: false,
   });
 
-  // Efecto adicional como respaldo (pero onSuccess debería ser suficiente)
+  // Sincronizar con el store cuando cambien los datos
   useEffect(() => {
     if (query.data && !query.error) {
       setUser(query.data);
     } else if (query.error?.response?.status === 401) {
       clearUser();
+      localStorage.removeItem("access_token");
     }
   }, [query.data, query.error, setUser, clearUser]);
 

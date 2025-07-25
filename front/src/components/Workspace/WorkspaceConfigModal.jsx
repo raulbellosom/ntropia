@@ -1,12 +1,26 @@
-import React, { useState } from "react";
-import ModalWrapper from "../common/ModalWrapper";
+import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { Globe, Lock, MailPlus, Trash2 } from "lucide-react";
-import { Tooltip } from "react-tooltip";
+import {
+  Crown,
+  Shield,
+  Edit3,
+  Eye,
+  User,
+  Settings,
+  Users,
+  Mail,
+  Lock,
+  Globe,
+  UserPlus,
+  X,
+  Save,
+} from "lucide-react";
+import ModalWrapper from "../common/ModalWrapper";
 import { useUpdateWorkspace } from "../../hooks/useWorkspaces";
 import {
   useWorkspaceMembers,
   useDeleteWorkspaceMember,
+  useUpdateWorkspaceMember,
 } from "../../hooks/useWorkspaceMembers";
 import useAuthStore from "../../store/useAuthStore";
 import { useCreateInvitation } from "../../hooks/useInvitations";
@@ -22,28 +36,24 @@ export default function WorkspaceConfigModal({
     workspace?.id
   );
   const deleteMember = useDeleteWorkspaceMember();
+  const updateMemberRole = useUpdateWorkspaceMember();
   const createInvitation = useCreateInvitation();
-
-  const [name, setName] = useState(workspace?.name || "");
-  const [description, setDescription] = useState(workspace?.description || "");
-  const [isPublic, setIsPublic] = useState(!!workspace?.is_public);
-  const [backgroundColor, setBackgroundColor] = useState(
-    workspace?.backgroundColor || "#ffffff"
-  );
-  const [loading, setLoading] = useState(false);
-
-  // Invitaciones
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviting, setInviting] = useState(false);
-
   const updateWorkspace = useUpdateWorkspace();
 
-  React.useEffect(() => {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("viewer");
+  const [loading, setLoading] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState(null);
+  const [deletingMember, setDeletingMember] = useState(false);
+
+  useEffect(() => {
     setName(workspace?.name || "");
     setDescription(workspace?.description || "");
     setIsPublic(!!workspace?.is_public);
-    setBackgroundColor(workspace?.backgroundColor || "#ffffff");
-    setInviteEmail("");
   }, [workspace]);
 
   const handleSave = async () => {
@@ -55,23 +65,20 @@ export default function WorkspaceConfigModal({
           name,
           description,
           is_public: isPublic,
-          backgroundColor,
         },
       });
       toast.success("Configuración actualizada");
       onClose?.();
       onSuccess?.();
-    } catch (e) {
+    } catch {
       toast.error("Error al guardar los cambios");
     }
     setLoading(false);
   };
 
-  // Simula la invitación, después conecta tu endpoint real
-  const handleInvite = async (e) => {
-    e.preventDefault();
+  const handleInvite = async () => {
     if (!inviteEmail.trim() || !inviteEmail.includes("@")) {
-      toast.error("Ingresa un correo válido.");
+      toast.error("Correo inválido");
       return;
     }
     setInviting(true);
@@ -80,25 +87,84 @@ export default function WorkspaceConfigModal({
         email: inviteEmail,
         workspace_id: workspace.id,
         invited_by: user.id,
+        role: inviteRole,
       });
       toast.success("Invitación enviada");
       setInviteEmail("");
       onSuccess?.();
     } catch {
-      toast.error("Ocurrió un error al enviar la invitación");
+      toast.error("Error al invitar miembro");
     }
     setInviting(false);
   };
 
-  // Eliminar miembro
-  const handleRemoveMember = async (member) => {
-    if (!window.confirm(`¿Eliminar a ${member.user?.email}?`)) return;
+  const handleConfirmDeleteMember = async () => {
+    if (!memberToDelete) return;
+    setDeletingMember(true);
     try {
-      await deleteMember.mutateAsync(member.id);
+      await deleteMember.mutateAsync(memberToDelete.id);
       toast.success("Miembro eliminado");
+      setMemberToDelete(null);
       onSuccess?.();
     } catch {
       toast.error("Error al eliminar miembro");
+    }
+    setDeletingMember(false);
+  };
+
+  const handleRoleChange = async (memberId, newRole) => {
+    try {
+      await updateMemberRole.mutateAsync({
+        id: memberId,
+        data: { role: newRole },
+      });
+      toast.success("Rol actualizado");
+      onSuccess?.();
+    } catch {
+      toast.error("Error al actualizar rol");
+    }
+  };
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case "owner":
+        return "Propietario";
+      case "editor":
+        return "Editor";
+      case "admin":
+        return "Admin";
+      default:
+        return "Visualizador";
+    }
+  };
+
+  const getRoleIcon = (role) => {
+    switch (role) {
+      case "owner":
+        return <Crown className="h-3 w-3" />;
+      case "admin":
+        return <Shield className="h-3 w-3" />;
+      case "editor":
+        return <Edit3 className="h-3 w-3" />;
+      case "viewer":
+        return <Eye className="h-3 w-3" />;
+      default:
+        return <User className="h-3 w-3" />;
+    }
+  };
+
+  const getRoleColor = (role) => {
+    switch (role) {
+      case "owner":
+        return "bg-yellow-100 text-yellow-800";
+      case "admin":
+        return "bg-red-100 text-red-800";
+      case "editor":
+        return "bg-blue-100 text-blue-800";
+      case "viewer":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -108,183 +174,226 @@ export default function WorkspaceConfigModal({
     <ModalWrapper
       isOpen={isOpen}
       onClose={onClose}
-      title="Configuración de mesa"
-      className="max-w-lg"
+      title="Configuración del Workspace"
     >
-      <div className="flex flex-col gap-6">
-        {/* Nombre y descripción */}
-        <div>
-          <label className="font-semibold text-sm text-gray-700 mb-1 block">
-            Nombre de la mesa
-          </label>
-          <input
-            className="w-full border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-base"
-            type="text"
-            value={name}
-            maxLength={50}
-            onChange={(e) => setName(e.target.value)}
-            disabled={loading}
-          />
-        </div>
-        <div>
-          <label className="font-semibold text-sm text-gray-700 mb-1 block">
-            Descripción
-          </label>
-          <textarea
-            className="w-full border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-base resize-none"
-            rows={2}
-            value={description}
-            maxLength={160}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={loading}
-          />
-        </div>
-        {/* Público/Privado */}
-        <div className="flex items-center gap-3">
-          <span className="font-semibold text-sm text-gray-700">
-            Visibilidad:
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsPublic(!isPublic)}
-            disabled={loading}
-            className={`flex items-center gap-1 px-3 py-1 rounded-full font-bold
-              ${
+      <div className="space-y-4 max-h-[80vh] overflow-y-auto">
+        {/* Configuración General */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Settings className="w-4 h-4" /> Configuración General
+          </h2>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nombre del workspace</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Descripción</label>
+            <textarea
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg min-h-[80px]"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Visibilidad</label>
+            <button
+              onClick={() => setIsPublic(!isPublic)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg font-semibold text-sm border border-gray-200  ${
                 isPublic
                   ? "bg-green-100 text-green-700"
                   : "bg-indigo-100 text-indigo-700"
-              }
-              hover:shadow transition`}
-            title={isPublic ? "Haz privado" : "Haz público"}
-          >
-            {isPublic ? (
-              <>
+              }`}
+            >
+              {isPublic ? (
                 <Globe className="w-4 h-4" />
-                Público
-              </>
-            ) : (
-              <>
+              ) : (
                 <Lock className="w-4 h-4" />
-                Privado
-              </>
-            )}
-          </button>
+              )}
+              {isPublic ? "Público" : "Privado"}
+            </button>
+            <p className="text-xs text-gray-500">
+              {isPublic
+                ? "Cualquiera con el enlace puede ver el workspace"
+                : "Solo los miembros invitados pueden acceder"}
+            </p>
+          </div>
         </div>
 
-        {/* Invitar miembro */}
-        <div>
-          <label className="font-semibold text-sm text-gray-700 mb-1 block">
-            Invitar miembro
-          </label>
-          <form className="flex items-center gap-2" onSubmit={handleInvite}>
-            <input
-              className="flex-1 border px-3 py-2 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-200"
-              type="email"
-              placeholder="Correo electrónico"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              disabled={inviting || loading}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <button
-              type="submit"
-              className="flex items-center gap-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold shadow disabled:opacity-60"
-              disabled={inviting || loading || !inviteEmail}
-            >
-              <MailPlus className="w-4 h-4" />
-              Invitar
-            </button>
-          </form>
-          <div className="text-xs text-gray-400 mt-1">
-            Se enviará una invitación (si el usuario existe recibirá una
-            notificación).
-          </div>
-
-          {/* Miembros actuales */}
-          <div className="mt-4">
-            <label className="font-semibold text-sm text-gray-700 mb-1 block">
-              Miembros actuales
-            </label>
-            <div className="flex flex-wrap gap-3 items-center">
-              {loadingMembers ? (
-                <span className="text-xs text-gray-400 animate-pulse">
-                  Cargando...
+        {/* Invitar Miembro */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <UserPlus className="w-4 h-4" /> Invitar Miembro
+          </h2>
+          <div className="grid grid-cols-12 gap-3">
+            <div className="col-span-12 md:col-span-6">
+              <label className="text-sm font-medium">Correo electrónico</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="usuario@ejemplo.com"
+                  className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg"
+                />
+              </div>
+            </div>
+            <div className="col-span-6 md:col-span-3">
+              <label className="text-sm font-medium">Rol</label>
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+              >
+                <option value="viewer">Visualizador</option>
+                <option value="editor">Editor</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </div>
+            <div className="col-span-6 md:col-span-3 flex items-end">
+              <button
+                onClick={handleInvite}
+                className="w-full bg-blue-600  hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
+              >
+                <span>
+                  <UserPlus className="h-4 w-4 text-white" />
                 </span>
-              ) : members && members.length > 0 ? (
-                members.map((m) => {
-                  const userM = m.user;
-                  const name =
-                    userM?.first_name ||
-                    (userM?.email ? userM.email.split("@")[0] : "S/N");
-                  const canRemove =
-                    workspace.owner === user.id && user.id !== userM.id;
-                  return (
-                    <div
-                      key={userM.id}
-                      className="flex flex-col items-center relative"
-                    >
-                      <div
-                        data-tooltip-id={`member-tooltip-${userM.id}`}
-                        data-tooltip-content={userM.email}
-                        data-tooltip-place="top"
-                        className="cursor-pointer"
-                      >
-                        {userM.avatar ? (
-                          <img
-                            src={userM.avatar}
-                            alt={name}
-                            className="w-10 h-10 rounded-full border-2 border-white shadow object-cover bg-gray-100"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 flex items-center justify-center rounded-full border-2 border-white bg-gray-200 text-gray-500 font-bold text-base">
-                            {name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <Tooltip id={`member-tooltip-${userM.id}`} />
+                Invitar
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Se enviará una invitación al correo especificado
+          </p>
+        </div>
+
+        {/* Miembros actuales */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Users className="w-4 h-4" /> Miembros Actuales
+          </h2>
+          <div className="space-y-3">
+            {members && members.length > 0 ? (
+              members.map((m) => {
+                const userM = m.user;
+                const name =
+                  userM?.first_name || userM?.email.split("@")[0] || "S/N";
+                const canRemove =
+                  workspace.owner === user.id && user.id !== userM.id;
+                return (
+                  <div
+                    key={userM.id}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600">
+                        {name.charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-xs text-gray-600 truncate max-w-[80px] mt-1">
-                        {name}
-                      </span>
-                      {/* Eliminar (solo si eres owner y no eres tú mismo) */}
+                      <div>
+                        <p className="font-medium text-sm truncate">{name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {userM.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {m.role !== "owner" ? (
+                        <select
+                          value={m.role}
+                          onChange={(e) =>
+                            handleRoleChange(m.id, e.target.value)
+                          }
+                          className={`text-xs font-medium px-2 py-1 rounded-lg border ${getRoleColor(
+                            m.role
+                          )}`}
+                        >
+                          <option value="viewer">Visualizador</option>
+                          <option value="editor">Editor</option>
+                          <option value="admin">Administrador</option>
+                        </select>
+                      ) : (
+                        <span
+                          className={`text-xs font-medium px-2 py-1 rounded-full border ${getRoleColor(
+                            m.role
+                          )}`}
+                        >
+                          {getRoleIcon(m.role)}{" "}
+                          <span className="ml-1">{getRoleLabel(m.role)}</span>
+                        </span>
+                      )}
                       {canRemove && (
                         <button
-                          className="absolute -top-2 -right-2 bg-white/90 rounded-full p-1 shadow-md border hover:bg-red-100 transition"
-                          title="Eliminar miembro"
-                          onClick={() => handleRemoveMember(m)}
-                          disabled={deleteMember.isLoading}
+                          className="text-muted-foreground hover:text-red-600"
+                          onClick={() => setMemberToDelete(m)}
                         >
-                          <Trash2 className="w-4 h-4 text-red-500" />
+                          <X className="h-4 w-4" />
                         </button>
                       )}
                     </div>
-                  );
-                })
-              ) : (
-                <span className="text-xs text-gray-400">Sin miembros</span>
-              )}
-            </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-gray-500">Sin miembros</p>
+            )}
           </div>
         </div>
 
-        {/* Botones */}
-        <div className="flex justify-end gap-2 pt-3 border-t">
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 pt-4 px-6 flex justify-end gap-3">
           <button
             className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-semibold"
             onClick={onClose}
-            disabled={loading}
           >
             Cancelar
           </button>
           <button
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold shadow"
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold shadow flex items-center gap-2"
             onClick={handleSave}
             disabled={loading}
           >
-            Guardar cambios
+            <Save className="h-4 w-4" /> Guardar cambios
           </button>
         </div>
       </div>
+      <ModalWrapper
+        isOpen={!!memberToDelete}
+        onClose={() => setMemberToDelete(null)}
+        title="Confirmar eliminación"
+        className="max-w-md"
+      >
+        <div className="p-4 space-y-4">
+          <p className="text-sm text-gray-700">
+            ¿Estás seguro que deseas eliminar a
+            <span className="font-semibold">
+              {" "}
+              {memberToDelete?.user?.email}
+            </span>{" "}
+            del workspace?
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setMemberToDelete(null)}
+              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700"
+              disabled={deletingMember}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmDeleteMember}
+              className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold"
+              disabled={deletingMember}
+            >
+              {deletingMember ? "Eliminando..." : "Eliminar"}
+            </button>
+          </div>
+        </div>
+      </ModalWrapper>
     </ModalWrapper>
   );
 }

@@ -1,9 +1,10 @@
-// front/src/components/Auth/LoginPage.jsx
+// src/components/Auth/LoginPage.jsx
 import React, { useMemo, useState } from "react";
 import { LogIn, Mail, Lock, Eye, EyeOff } from "lucide-react";
-import { useNavigate, Link } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useLogin } from "../../hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 
 const PHRASES = [
   "¡Nos alegra verte de vuelta!",
@@ -17,27 +18,28 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const navigate = useNavigate();
   const login = useLogin();
+  const queryClient = useQueryClient();
+
+  const navigate = useNavigate();
+  const { search } = useLocation();
+  const next = new URLSearchParams(search).get("next") || "/dashboard";
+
   const phrase = useMemo(
     () => PHRASES[Math.floor(Math.random() * PHRASES.length)],
     []
   );
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    login.mutate(
-      { email, password },
-      {
-        onSuccess: () => {
-          navigate("/dashboard");
-        },
-        onError: () => {
-          setError("Correo o contraseña incorrectos.");
-        },
-      }
-    );
+
+    try {
+      await login.mutateAsync({ email, password });
+      navigate(next);
+    } catch (error) {
+      setError("Correo o contraseña incorrectos.");
+    }
   };
 
   return (
@@ -90,9 +92,6 @@ export default function LoginPage() {
               required
               autoComplete="current-password"
               disabled={login.isPending}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSubmit(e);
-              }}
             />
             <button
               type="button"

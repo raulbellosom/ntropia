@@ -1,9 +1,13 @@
 // front/src/services/workspace_members.js
 import api from "./api";
 
-// Get all workspace members
+// Get all workspace members, expanding the related user_id field
 export const getWorkspaceMembers = (workspaceId) =>
-  api.get(`/items/workspace_members?filter[workspace_id][_eq]=${workspaceId}`);
+  api.get(
+    `/items/workspace_members` +
+      `?filter[workspace_id][_eq]=${workspaceId}` +
+      `&fields=*,user_id.*` // expand user_id => returns user_id as full object
+  );
 
 // Get a single workspace member
 export const getWorkspaceMember = (id) =>
