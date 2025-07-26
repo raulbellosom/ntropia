@@ -21,6 +21,7 @@ services:
     environment:
       - SECRET=${SECRET}
       - PUBLIC_URL=${PUBLIC_URL}
+      - AUTH_TOKEN_TTL=${AUTH_TOKEN_TTL}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - DB_CLIENT=${DB_CLIENT}
