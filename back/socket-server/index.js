@@ -38,7 +38,8 @@ app.post("/emit", (req, res) => {
   res.json({ success: true });
 });
 
-const PORT = 4001;
+const PORT = process.env.SOCKET_SERVER_PORT || 4010;
+
 server.listen(PORT, () => {
   console.log(`🚀 Socket server escuchando en puerto ${PORT}`);
 });
