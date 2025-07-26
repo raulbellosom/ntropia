@@ -9,12 +9,14 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicRoute from "./routes/PublicRoute";
 import MainLayout from "./layouts/MainLayout";
 import CanvasLayout from "./layouts/CanvasLayout";
+import LandingPage from "./components/Landing/LandingPage";
 
 export default function App() {
   return (
     <Routes>
       {/* Público: solo login/register */}
       <Route element={<PublicRoute />}>
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
       </Route>
@@ -44,7 +46,7 @@ export default function App() {
           !!localStorage.getItem("access_token") ? (
             <Navigate to="/dashboard" />
           ) : (
-            <Navigate to="/login" />
+            <Navigate to="/landing" />
           )
         }
       />
