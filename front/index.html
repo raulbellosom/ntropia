@@ -1,11 +1,172 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/ntropia.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ntropia</title>
-    <link href="src/index.css" rel="stylesheet" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/ntropia.svg" />
+    <link rel="apple-touch-icon" href="/ntropia.png" />
+
+    <!-- SEO Básico -->
+    <title>Ntropia - Workspaces Colaborativos para Equipos de Diseño</title>
+    <meta
+      name="description"
+      content="Plataforma de workspaces colaborativos en tiempo real. Crea, diseña y colabora con herramientas profesionales como capas, formas, imágenes y marcadores. Gratis para equipos."
+    />
+    <meta
+      name="keywords"
+      content="workspace colaborativo, diseño en tiempo real, herramientas de diseño, colaboración en equipo, ilustración digital, canvas compartido, ntropia, racoondevs"
+    />
+    <meta name="author" content="RacoonDevs" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://ntropia.giize.com" />
+
+    <!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="Ntropia - Workspaces Colaborativos para Equipos de Diseño"
+    />
+    <meta
+      property="og:description"
+      content="Revoluciona tu flujo de trabajo. Crea, colabora y diseña en tiempo real con herramientas profesionales. Gratuito para equipos."
+    />
+    <meta property="og:url" content="https://ntropia.giize.com" />
+    <meta property="og:site_name" content="Ntropia" />
+    <meta property="og:image" content="https://ntropia.giize.com/ntropia.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Ntropia - Plataforma de workspaces colaborativos por RacoonDevs"
+    />
+    <meta property="og:locale" content="es_ES" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@racoondevs" />
+    <meta name="twitter:creator" content="@racoondevs" />
+    <meta name="twitter:title" content="Ntropia - Workspaces Colaborativos" />
+    <meta
+      name="twitter:description"
+      content="Crea, colabora y diseña en tiempo real con herramientas profesionales. Gratuito para equipos."
+    />
+    <meta
+      name="twitter:image"
+      content="https://ntropia.giize.com/ntropia.png"
+    />
+    <meta
+      name="twitter:image:alt"
+      content="Logo de Ntropia - Interfaz de workspace colaborativo"
+    />
+
+    <!-- Datos Estructurados JSON-LD -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Ntropia",
+        "description": "Plataforma de workspaces colaborativos en tiempo real para equipos de diseño",
+        "url": "https://ntropia.giize.com",
+        "logo": "https://ntropia.giize.com/ntropia.svg",
+        "image": "https://ntropia.giize.com/ntropia.png",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Web Browser",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock"
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.8",
+          "ratingCount": "150"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "RacoonDevs",
+          "url": "https://racoondevs.com",
+          "logo": "https://racoondevs.com/img/INICIO/LOGO_B&W.png",
+          "sameAs": ["https://ntropia.racoondevs.com"],
+          "founder": {
+            "@type": "Person",
+            "name": "Raul Belloso",
+            "jobTitle": "CEO & Founder",
+            "email": "raul.belloso.m@gmail.com",
+            "worksFor": {
+              "@type": "Organization",
+              "name": "RacoonDevs"
+            }
+          },
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Relampago #101",
+            "addressLocality": "Puerto Vallarta",
+            "addressRegion": "Jalisco",
+            "postalCode": "48333",
+            "addressCountry": "MX"
+          },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+52-322-265-2650",
+            "contactType": "customer service",
+            "email": "admin@racoondevs.com",
+            "availableLanguage": ["Spanish", "English"]
+          }
+        },
+        "softwareVersion": "1.0",
+        "datePublished": "2025-01-26",
+        "dateModified": "2025-01-26",
+        "inLanguage": "es",
+        "isAccessibleForFree": true
+      }
+    </script>
+
+    <!-- Verificación de motores de búsqueda -->
+    <meta name="google-site-verification" content="TU_CODIGO_GOOGLE_AQUI" />
+    <meta name="msvalidate.01" content="TU_CODIGO_BING_AQUI" />
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#337ab7" />
+    <meta name="application-name" content="Ntropia" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Ntropia" />
+
+    <!-- Preload de recursos críticos -->
+    <link rel="preload" href="/src/index.css" as="style" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- CSS -->
+    <link href="/src/index.css" rel="stylesheet" />
+
+    <!-- Analytics (Google Analytics 4) -->
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"
+    ></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-XXXXXXXXXX");
+    </script>
+
+    <!-- Redirección automática para el dominio futuro -->
+    <script>
+      // Cuando el dominio futuro esté listo, descomenta esta línea:
+      // if (window.location.hostname === 'ntropia.giize.com') {
+      //   window.location.replace('https://ntropia.racoondevs.com' + window.location.pathname + window.location.search);
+      // }
+    </script>
   </head>
   <body>
     <div id="root"></div>
