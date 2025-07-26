@@ -16,7 +16,7 @@ export default function App() {
     <Routes>
       {/* Público: solo login/register */}
       <Route element={<PublicRoute />}>
-        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
       </Route>
@@ -46,7 +46,7 @@ export default function App() {
           !!localStorage.getItem("access_token") ? (
             <Navigate to="/dashboard" />
           ) : (
-            <Navigate to="/landing" />
+            <Navigate to="/" />
           )
         }
       />
