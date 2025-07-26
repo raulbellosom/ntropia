@@ -40,7 +40,7 @@ export default function LandingLayout({ children }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800">
       {/* Header */}
       <header
         className={`fixed top-0 left-0 right-0 z-50 px-4 lg:px-6 h-16 flex items-center transition-all duration-300 ${
@@ -162,7 +162,7 @@ export default function LandingLayout({ children }) {
         </div>
       </div>
 
-      <main className="pt-16">{children}</main>
+      <main className="pt-16 text-inherit">{children}</main>
 
       {/* Footer */}
       <footer className="bg-slate-900/80 text-slate-400 text-sm px-4 pt-20 pb-10 border-t border-slate-700 mt-20">

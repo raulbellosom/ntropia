@@ -71,7 +71,7 @@ export default function RegisterPage() {
 
   return (
     <LandingLayout>
-      <div className="min-h-screen text-gray-700 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <motion.div
           className="bg-white/90 shadow-2xl rounded-2xl p-8 max-w-sm w-full"
           initial={{ opacity: 0, scale: 0.98, y: 40 }}
