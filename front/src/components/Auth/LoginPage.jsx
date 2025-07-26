@@ -46,7 +46,7 @@ export default function LoginPage() {
 
   return (
     <LandingLayout>
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-indigo-900 to-sky-600">
+      <div className="min-h-screen flex items-center justify-center">
         <motion.div
           className="bg-white/90 shadow-2xl rounded-2xl p-8 max-w-sm w-full"
           initial={{ opacity: 0, scale: 0.98, y: 40 }}
