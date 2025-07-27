@@ -218,6 +218,8 @@ export default function CanvasStage() {
     // Ocultar menú contextual
     if (contextMenu) hideContextMenu();
 
+    if (tool === "hand") return;
+
     const SHAPE_CLASSES = [
       "Arrow",
       "Rect",
@@ -234,6 +236,14 @@ export default function CanvasStage() {
       (SHAPE_CLASSES.includes(e.target.getClassName()) ||
         e.target.getParent()?.getClassName() === "Group");
 
+    // En modo visualización, solo permitir interacción con markers
+    if (!isEditMode) {
+      const isMarker =
+        e.target.getParent()?.getClassName() === "Group" &&
+        e.target.getParent()?.name() === "marker";
+      if (!isMarker) return;
+    }
+
     // Solo retornar temprano si es herramienta select Y se hizo clic en una figura
     if (tool === "select" && clickedOnShape) {
       return;
@@ -244,8 +254,14 @@ export default function CanvasStage() {
       e.target === e.target.getStage() ||
       (e.target.id && e.target.id() === "background-rect");
 
-    // --- NUEVO: Evita dibujo si no hay capa activa válida ---
-    if (!hasActiveLayer && tool !== "select" && tool !== "hand") {
+    // Evita dibujo si no hay capa activa válida o no está en modo edición
+    if (
+      (!hasActiveLayer || !isEditMode) &&
+      tool !== "select" &&
+      tool !== "hand"
+    ) {
+      if (!isEditMode) return; // En modo visualización no hacer nada
+
       toast("Selecciona una capa antes de continuar", {
         icon: "⚠️",
         duration: 3500,
@@ -253,18 +269,20 @@ export default function CanvasStage() {
       return;
     }
 
-    if (tool === "select" && isBackground) {
+    if (tool === "select" && isBackground && isEditMode) {
       if (!e.evt.ctrlKey && !e.evt.metaKey) {
         clearSelection();
         selectStart();
       }
-    } else if (tool !== "select") {
-      // Permitir dibujo independientemente de si se hace clic en una figura o no
+    } else if (tool !== "select" && isEditMode) {
+      // Permitir dibujo solo en modo edición
       drawMouseDown(e);
     }
   };
 
   const handleStageMouseMove = (e) => {
+    if (!isEditMode) return; // No permitir interacciones en modo visualización
+    if (tool === "hand") return;
     if (tool === "select") {
       selectMove();
     } else if (isDrawing) {
@@ -273,6 +291,8 @@ export default function CanvasStage() {
   };
 
   const handleStageMouseUp = () => {
+    if (!isEditMode) return; // No permitir interacciones en modo visualización
+    if (tool === "hand") return;
     if (tool === "select") {
       selectEnd();
     }
@@ -484,6 +504,10 @@ export default function CanvasStage() {
   };
 
   const handleStageDoubleClick = (e) => {
+    // Solo en modo edición permitir cambio de herramienta
+    if (tool === "hand") return;
+    if (!isEditMode) return;
+
     // Solo cambiar a select si no se hizo doble clic en una figura
     const SHAPE_CLASSES = [
       "Arrow",
@@ -608,7 +632,9 @@ export default function CanvasStage() {
               setSelectedShape={setSelectedShape}
               handleTransformEnd={handleTransformEnd}
               handleShapeDragEnd={handleShapeDragEnd}
-              handleShapeDoubleClick={handleShapeDoubleClick}
+              handleShapeDoubleClick={() =>
+                tool === "select" ? handleShapeDoubleClick : undefined
+              }
               setContextMenu={showContextMenu}
               autoEditTextId={autoEditTextId}
               updateShape={updateShape}
@@ -622,7 +648,9 @@ export default function CanvasStage() {
           {/* Transformer múltiple */}
           <MultiTransformer
             transformerRef={multiSelectRef}
-            enabled={isEditMode && selectedShapeIds.length > 1}
+            enabled={
+              isEditMode && selectedShapeIds.length > 1 && tool !== "hand"
+            }
           />
         </Layer>
       </Stage>

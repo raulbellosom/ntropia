@@ -25,6 +25,7 @@ import { toast } from "react-hot-toast";
 import { generateId } from "../../utils/id";
 import { API_URL } from "../../config";
 import api from "../../services/api";
+import useAuthStore from "../../store/useAuthStore";
 
 export default function WorkspacePage() {
   const { id: workspaceId } = useParams();
@@ -37,6 +38,7 @@ export default function WorkspacePage() {
     useLayers(workspaceId);
   const layerIds = backendLayers ? backendLayers.map((l) => l.id) : [];
   const { data: backendShapes, isLoading: loadingShapes } = useShapes(layerIds);
+  const user = useAuthStore((s) => s.user);
 
   // Zustand store setters
   const setAllLayers = useCanvasStore((s) => s.setAllLayers);
@@ -339,6 +341,8 @@ export default function WorkspacePage() {
         onSave={handleSaveAll}
         onDiscard={handleDiscardAll}
         onExit={() => navigate("/")}
+        userRole={workspace?.userRole}
+        isOwner={workspace?.isOwner || workspace?.owner === user?.id}
       />
 
       {/* Contenido principal del canvas */}

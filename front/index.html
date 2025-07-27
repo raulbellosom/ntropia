@@ -131,20 +131,16 @@
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#337ab7" />
     <meta name="application-name" content="Ntropia" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="Ntropia" />
 
-    <!-- Preload de recursos críticos -->
-    <link rel="preload" href="/src/index.css" as="style" />
+    <!-- Preconnect para fonts (mantener solo estos preconnects que sí se usan) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <!-- CSS -->
-    <link href="/src/index.css" rel="stylesheet" />
 
     <!-- Analytics (Google Analytics 4) -->
     <script

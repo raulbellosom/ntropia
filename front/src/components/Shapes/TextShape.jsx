@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Text, Rect, Transformer, Group } from "react-konva";
 import { Html } from "react-konva-utils";
+import { useEditMode } from "../../hooks/useEditMode";
+import { useCanvasStore } from "../../store/useCanvasStore";
 
 export default function TextShape({
   id,
@@ -24,7 +26,8 @@ export default function TextShape({
   const trRef = useRef();
   const [isEditing, setIsEditing] = useState(autoEdit || false);
   const [value, setValue] = useState(text);
-
+  const { isEditMode } = useEditMode();
+  const { tool } = useCanvasStore();
   // Actualizar texto local cuando cambie la prop
   useEffect(() => setValue(text), [text]);
   useEffect(() => {
@@ -103,8 +106,12 @@ export default function TextShape({
             draggable={isSelected}
             onClick={onSelect}
             onTap={onSelect}
-            onDblClick={() => setIsEditing(true)}
-            onDblTap={() => setIsEditing(true)}
+            onDblClick={() =>
+              isEditMode && tool === "select" && setIsEditing(true)
+            }
+            onDblTap={() =>
+              isEditMode && tool === "select" && setIsEditing(true)
+            }
             onDragEnd={(e) => {
               const node = e.target;
               onTransformEnd &&

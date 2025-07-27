@@ -14,7 +14,6 @@ import {
   Clipboard,
   PaintBucket,
   ArrowRight,
-  Settings,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -22,7 +21,6 @@ import { useCanvasStore } from "../../store/useCanvasStore";
 import IconColorPicker from "../common/IconColorPicker";
 import classNames from "classnames";
 import { useMediaQuery } from "react-responsive";
-import SettingsMenuModal from "../Canvas/SettingsMenuModal";
 import { motion, AnimatePresence } from "framer-motion";
 import useValidActiveLayer from "../../hooks/useValidActiveLayer";
 import { toast } from "react-hot-toast";
@@ -126,7 +124,6 @@ const toggleButtonVariants = {
 export default function Toolbar() {
   const { strokeColor, fillColor, tool, clipboardShape } = useCanvasStore();
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const saveToHistory = useCanvasStore((s) => s.saveToHistory);
 
@@ -147,7 +144,6 @@ export default function Toolbar() {
   const currentStrokeColor = selectedShape?.props?.stroke ?? strokeColor;
   const currentFillColor = selectedShape?.props?.fill ?? fillColor;
 
-  const activeLayerId = useCanvasStore((s) => s.activeLayerId);
   const setTool = useCanvasStore((s) => s.setTool);
 
   const handleStrokeColorChange = (color) => {
@@ -302,14 +298,6 @@ export default function Toolbar() {
                     vertical={!isMobile}
                   />
                 </motion.div>
-                <motion.button
-                  variants={itemVariants}
-                  className="p-2 rounded text-white hover:bg-blue-500/90 transition-colors duration-200"
-                  title="Configuración del lienzo"
-                  onClick={() => setSettingsOpen(true)}
-                >
-                  <Settings size={20} />
-                </motion.button>
               </motion.div>
 
               {/* Separador */}
@@ -363,11 +351,6 @@ export default function Toolbar() {
           )}
         </AnimatePresence>
       </motion.div>
-
-      <SettingsMenuModal
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
     </>
   );
 }

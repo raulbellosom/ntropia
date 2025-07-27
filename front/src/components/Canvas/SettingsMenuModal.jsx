@@ -23,15 +23,37 @@ import {
 import classNames from "classnames";
 import IconColorPicker from "../common/IconColorPicker";
 import { pdfToImage } from "../../utils/pdfToImage";
-
-const TABS = [
-  { key: "canvas", label: "Canvas", icon: <ImageIcon size={18} /> },
-  { key: "export", label: "Exportar", icon: <Download size={18} /> },
-  { key: "about", label: "About", icon: <Info size={18} /> },
-];
+import { useEditMode } from "../../hooks/useEditMode";
 
 export default function SettingsMenuModal({ isOpen, onClose }) {
-  const [tab, setTab] = useState("canvas");
+  const { isEditMode } = useEditMode();
+
+  // Crear TABS dinámicamente basado en el modo
+  const TABS = [
+    // Solo incluir tab Canvas si está en modo edición
+    ...(isEditMode
+      ? [{ key: "canvas", label: "Canvas", icon: <ImageIcon size={18} /> }]
+      : []),
+    { key: "export", label: "Exportar", icon: <Download size={18} /> },
+    { key: "about", label: "About", icon: <Info size={18} /> },
+  ];
+
+  // Inicializar tab basado en el modo
+  const [tab, setTab] = useState(() => {
+    return isEditMode ? "canvas" : "export";
+  });
+
+  // Actualizar tab cuando cambie el modo de edición
+  useEffect(() => {
+    // Si está en modo visualización y el tab actual es canvas, cambiar a export
+    if (!isEditMode && tab === "canvas") {
+      setTab("export");
+    }
+    // Si está en modo edición y el modal se abre, usar canvas como default
+    if (isEditMode && isOpen && !["canvas", "export", "about"].includes(tab)) {
+      setTab("canvas");
+    }
+  }, [isEditMode, tab, isOpen]);
 
   // Store hooks
   const {
@@ -46,15 +68,16 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
     backgroundImage,
   } = useCanvasStore();
 
-  // --- Estado temporal para edición (no guardes directo) ---
+  // --- Estado temporal para edición (solo necesario si hay tab canvas) ---
   const [draft, setDraft] = useState({
     width: canvasWidth,
     height: canvasHeight,
     backgroundColor,
     backgroundImage,
   });
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isEditMode) {
       setDraft({
         width: canvasWidth,
         height: canvasHeight,
@@ -62,7 +85,14 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
         backgroundImage,
       });
     }
-  }, [isOpen, canvasWidth, canvasHeight, backgroundColor, backgroundImage]);
+  }, [
+    isOpen,
+    canvasWidth,
+    canvasHeight,
+    backgroundColor,
+    backgroundImage,
+    isEditMode,
+  ]);
 
   // Export settings
   const stageRef = window.__konvaStageRef;
@@ -115,8 +145,10 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
     link.click();
   };
 
-  // Guardar los cambios generales
+  // Guardar los cambios generales (solo disponible en modo edición)
   function handleSaveAll() {
+    if (!isEditMode) return;
+
     setCanvasSize({
       width: Math.max(100, parseInt(draft.width)),
       height: Math.max(100, parseInt(draft.height)),
@@ -127,8 +159,14 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
     }
     onClose();
   }
-  // Deshacer los cambios locales
+
+  // Deshacer los cambios locales (solo disponible en modo edición)
   function handleDiscard() {
+    if (!isEditMode) {
+      onClose();
+      return;
+    }
+
     setDraft({
       width: canvasWidth,
       height: canvasHeight,
@@ -139,6 +177,8 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
   }
 
   function handleBackgroundImageChange(e) {
+    if (!isEditMode) return;
+
     const file = e.target.files[0];
     if (!file) return;
 
@@ -161,6 +201,8 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
   }
 
   async function handleBackgroundPdfChange(e) {
+    if (!isEditMode) return;
+
     const file = e.target.files[0];
     if (!file) return;
     const { dataUrl, width, height } = await pdfToImage(file, 2);
@@ -179,7 +221,12 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
       title={
         <span className="flex gap-2 items-center">
           <Settings size={20} />
-          Menu
+          Menu{" "}
+          {!isEditMode && (
+            <span className="text-sm font-normal text-gray-500">
+              (Modo Visualización)
+            </span>
+          )}
         </span>
       }
     >
@@ -204,7 +251,8 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
 
         {/* Content */}
         <section className="flex-1 pl-0 md:pl-6 overflow-y-auto relative">
-          {tab === "canvas" && (
+          {/* Tab Canvas - Solo en modo edición */}
+          {tab === "canvas" && isEditMode && (
             <form
               className="flex flex-col gap-y-8 md:gap-y-6 h-full"
               onSubmit={(e) => {
@@ -470,7 +518,7 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                   apoyar su desarrollo:
                 </p>
                 <div className="flex gap-2 mt-2">
-                  <a
+                  {/* <a
                     href="https://www.paypal.com/donate/?hosted_button_id=Z3X5K6Y7V8W9U"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -478,17 +526,28 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                   >
                     <Banknote className="w-5 h-5" />
                     Donar con PayPal
-                  </a>
+                  </a> */}
                   <a
-                    href="https://ko-fi.com/raulbellosom"
+                    href="https://coff.ee/raulbellosom"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2 rounded bg-yellow-500 text-white font-semibold"
                   >
                     <Coffee className="w-5 h-5" />
-                    Donar con Ko-fi
+                    Comprame un café
                   </a>
                 </div>
+                {/* Codigo abierto */}
+                <p className="text-xs text-gray-500 mt-4">
+                  Este proyecto es{" "}
+                  <a
+                    href="https://github.com/raulbellosom/ntropia"
+                    className="text-blue-500 underline"
+                  >
+                    código abierto
+                  </a>
+                  . Puedes contribuir o reportar problemas en GitHub.
+                </p>
               </div>
             </div>
           )}

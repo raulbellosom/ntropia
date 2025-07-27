@@ -43,6 +43,7 @@ export default (router, { database }) => {
     const userId = req.accountability.user;
 
     try {
+      // 1. Verificar acceso al workspace
       const workspace = await database("workspaces")
         .leftJoin(
           "workspace_members",
@@ -62,7 +63,39 @@ export default (router, { database }) => {
         return res.status(403).json({ error: "Unauthorized" });
       }
 
-      res.json({ data: workspace });
+      // 2. Obtener los miembros del workspace con información del usuario
+      const members = await database("workspace_members as wm")
+        .join("directus_users as u", "wm.user_id", "u.id")
+        .where("wm.workspace_id", id)
+        .select(
+          "wm.id",
+          "wm.role",
+          "wm.invited_by",
+          "wm.date_created",
+          "wm.user_id",
+          "u.first_name",
+          "u.last_name",
+          "u.email",
+          "u.avatar"
+        );
+
+      // 3. Encontrar el rol del usuario actual
+      const currentUserMember = members.find((m) => m.user_id === userId);
+      const userRole = currentUserMember
+        ? currentUserMember.role
+        : workspace.owner === userId
+        ? "owner"
+        : null;
+
+      // 4. Retornar workspace con información adicional
+      res.json({
+        data: {
+          ...workspace,
+          members: members,
+          userRole: userRole,
+          isOwner: workspace.owner === userId,
+        },
+      });
     } catch (err) {
       next(err);
     }

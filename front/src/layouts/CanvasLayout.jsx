@@ -13,7 +13,7 @@ export default function CanvasLayout({ children }) {
         }}
       />
       {children}
-      <NtropiaLogo className="absolute bottom-4 left-4 h-12 w-12 opacity-25" />
+      <NtropiaLogo className="absolute bottom-2 right-2 h-12 w-12 opacity-25" />
     </div>
   );
 }

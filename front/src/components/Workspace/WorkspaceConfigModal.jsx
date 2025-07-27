@@ -230,7 +230,7 @@ export default function WorkspaceConfigModal({
             <UserPlus className="w-4 h-4" /> Invitar Miembro
           </h2>
           <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-12 md:col-span-6">
+            <div className="col-span-8">
               <label className="text-sm font-medium">Correo electrónico</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -243,7 +243,7 @@ export default function WorkspaceConfigModal({
                 />
               </div>
             </div>
-            <div className="col-span-6 md:col-span-3">
+            {/* <div className="col-span-6 md:col-span-3">
               <label className="text-sm font-medium">Rol</label>
               <select
                 value={inviteRole}
@@ -254,8 +254,8 @@ export default function WorkspaceConfigModal({
                 <option value="editor">Editor</option>
                 <option value="admin">Administrador</option>
               </select>
-            </div>
-            <div className="col-span-6 md:col-span-3 flex items-end">
+            </div> */}
+            <div className="col-span-4 flex items-end">
               <button
                 onClick={handleInvite}
                 className="w-full bg-blue-600  hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"

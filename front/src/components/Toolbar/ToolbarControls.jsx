@@ -5,8 +5,6 @@ import {
   ZoomOut,
   Grid as GridIcon,
   LocateFixed,
-  Undo,
-  Redo,
   Layers,
   Hand as HandIcon,
 } from "lucide-react";
@@ -26,8 +24,6 @@ export default function ToolbarControls() {
     tool,
   } = useCanvasStore();
 
-  const undo = useCanvasStore((s) => s.undo);
-  const redo = useCanvasStore((s) => s.redo);
   const toggleLayersPanel = useCanvasStore((s) => s.toggleLayersPanel);
   const layersPanelVisible = useCanvasStore((s) => s.layersPanelVisible);
 
@@ -36,7 +32,7 @@ export default function ToolbarControls() {
   return (
     <div
       className={classNames(
-        "fixed z-50 right-3 bottom-3 transition-all duration-200",
+        "fixed z-50 left-3 bottom-3 transition-all duration-200",
         { "right-1 left-1 flex justify-center": isMobile }
       )}
     >
@@ -82,20 +78,6 @@ export default function ToolbarControls() {
           )}
         >
           <HandIcon size={20} />
-        </button>
-        <button
-          onClick={undo}
-          title="Deshacer (Ctrl+Z)"
-          className="p-2 rounded transition-colors text-white hover:bg-blue-500/90 duration-150"
-        >
-          <Undo size={20} />
-        </button>
-        <button
-          onClick={redo}
-          title="Rehacer (Ctrl+Shift+Z)"
-          className="p-2 rounded transition-colors text-white hover:bg-blue-500/90 duration-150"
-        >
-          <Redo size={20} />
         </button>
         <button
           onClick={zoomOut}

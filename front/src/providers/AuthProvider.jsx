@@ -3,6 +3,7 @@ import { LayoutGrid } from "lucide-react";
 import { motion } from "framer-motion";
 import useAuthStore from "../store/useAuthStore";
 import { useCurrentUser } from "../hooks/useAuth";
+import { useSocketNotifications } from "../hooks/useSocketNotifications";
 
 const PHRASES = [
   "Un gran proyecto empieza con una gran idea.",
@@ -15,6 +16,7 @@ const PHRASES = [
 export default function AuthProvider({ children }) {
   const { isLoading, error } = useCurrentUser();
   const user = useAuthStore((s) => s.user);
+  useSocketNotifications();
 
   const phrase = useMemo(() => {
     return PHRASES[Math.floor(Math.random() * PHRASES.length)];

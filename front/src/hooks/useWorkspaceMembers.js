@@ -16,6 +16,25 @@ export function useWorkspaceMembers(workspaceId) {
   });
 }
 
+// Obtener el rol del usuario actual en un workspace
+export function useCurrentUserRole(workspace, userId) {
+  if (!workspace || !userId) return null;
+
+  // Si es el propietario
+  if (workspace.owner === userId || workspace.isOwner) {
+    return "owner";
+  }
+
+  // Si tiene rol específico desde el endpoint
+  if (workspace.userRole) {
+    return workspace.userRole;
+  }
+
+  // Buscar en la lista de miembros
+  const member = workspace.members?.find((m) => m.user_id === userId);
+  return member?.role || "viewer";
+}
+
 // Crear miembro
 export function useCreateWorkspaceMember() {
   const queryClient = useQueryClient();
