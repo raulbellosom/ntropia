@@ -111,7 +111,10 @@ export default ({ filter, action }) => {
           `,
         });
         try {
-          await fetch(`${process.env.SOCKET_SERVER_URL}/emit`, {
+          const socketUrl =
+            process.env.SOCKET_SERVER_URL || "http://localhost:4010";
+          console.log("🔗 [DEBUG] Socket URL:", socketUrl);
+          await fetch(`${socketUrl}/emit`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

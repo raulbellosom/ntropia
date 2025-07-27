@@ -42,6 +42,7 @@ services:
       - SMTP_PASS=${SMTP_PASS}
     volumes:
       - directus_data:/data
+      - directus_uploads:/directus/uploads
       - ./extensions:/directus/extensions
     restart: unless-stopped
 
@@ -61,3 +62,4 @@ services:
 volumes:
   db_data:
   directus_data:
+  directus_uploads:

@@ -16,7 +16,7 @@ const PHRASES = [
 export default function AuthProvider({ children }) {
   const { isLoading, error } = useCurrentUser();
   const user = useAuthStore((s) => s.user);
-  useSocketNotifications();
+  // useSocketNotifications();
 
   const phrase = useMemo(() => {
     return PHRASES[Math.floor(Math.random() * PHRASES.length)];
