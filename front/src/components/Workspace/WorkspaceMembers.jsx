@@ -3,6 +3,7 @@ import React from "react";
 import { UserCircle } from "lucide-react";
 import { Tooltip } from "react-tooltip";
 import { useWorkspaceMembers } from "../../hooks/useWorkspaceMembers";
+import ImageWithDirectusUrl from "../common/ImageWithDirectusUrl";
 
 export default function WorkspaceMembers({ workspaceId, size = 6 }) {
   const { data: members = [], isLoading } = useWorkspaceMembers(workspaceId);
@@ -30,7 +31,7 @@ export default function WorkspaceMembers({ workspaceId, size = 6 }) {
             className="cursor-pointer"
           >
             {user?.avatar ? (
-              <img
+              <ImageWithDirectusUrl
                 src={user.avatar}
                 alt={name}
                 className="w-7 h-7 rounded-full border-2 border-white shadow object-cover bg-gray-100"

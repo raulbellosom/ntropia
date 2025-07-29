@@ -14,6 +14,13 @@ export const register = ({ email, password, first_name, last_name }) =>
 export const getMe = () =>
   api.get("/users/me?fields=id,first_name,last_name,email,avatar");
 
+// Cambiar contraseña del usuario actual
+export const updatePassword = ({ new_password }) => {
+  return api.patch("/users/me", {
+    password: new_password,
+  });
+};
+
 // Cerrar sesión (solo elimina token)
 export const logout = () => {
   localStorage.removeItem("access_token");

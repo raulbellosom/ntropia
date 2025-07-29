@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as authService from "../services/auth";
+import api from "../services/api";
 import useAuthStore from "../store/useAuthStore";
 import { useEffect } from "react";
 
@@ -80,4 +81,35 @@ export function useLogout() {
     queryClient.clear();
     window.location.href = "/login";
   };
+}
+
+// Hook para actualizar perfil
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  const setUser = useAuthStore((s) => s.setUser);
+
+  return useMutation({
+    mutationFn: async (data) => {
+      return api.patch("/users/me", data);
+    },
+    onSuccess: (response) => {
+      const updatedUser = response.data.data;
+      setUser(updatedUser);
+      queryClient.setQueryData(["me"], response);
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+    onError: (error) => {
+      console.error("Error actualizando perfil:", error);
+    },
+  });
+}
+
+// Hook para cambiar contraseña
+export function useUpdatePassword() {
+  return useMutation({
+    mutationFn: authService.updatePassword,
+    onError: (error) => {
+      console.error("Error cambiando contraseña:", error);
+    },
+  });
 }

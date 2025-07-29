@@ -18,6 +18,7 @@ import {
   Clock,
 } from "lucide-react";
 import ModalWrapper from "../common/ModalWrapper";
+import ImageWithDirectusUrl from "../common/ImageWithDirectusUrl";
 import { useUpdateWorkspace } from "../../hooks/useWorkspaces";
 import {
   useWorkspaceMembers,
@@ -369,9 +370,17 @@ export default function WorkspaceConfigModal({
                     className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600">
-                        {name.charAt(0).toUpperCase()}
-                      </div>
+                      {userM?.avatar ? (
+                        <ImageWithDirectusUrl
+                          src={userM.avatar}
+                          alt={name}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600">
+                          {name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div>
                         <p className="font-medium text-sm truncate">{name}</p>
                         <p className="text-xs text-muted-foreground truncate">

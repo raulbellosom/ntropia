@@ -10,6 +10,7 @@ import { useDeleteFiles } from "../../hooks/useFiles";
 import { toast } from "react-hot-toast";
 import WorkspaceConfigModal from "../Workspace/WorkspaceConfigModal";
 import WorkspaceCard from "../Workspace/WorkspaceCard";
+import ImageWithDirectusUrl from "../common/ImageWithDirectusUrl";
 
 export default function DashboardHome() {
   const user = useAuthStore((s) => s.user);
@@ -86,7 +87,7 @@ export default function DashboardHome() {
             }`}
           >
             {user?.avatar ? (
-              <img
+              <ImageWithDirectusUrl
                 src={user.avatar}
                 alt="avatar"
                 className="h-full w-full object-cover"
@@ -101,15 +102,6 @@ export default function DashboardHome() {
               />
             )}
           </div>
-          {ownedWorkspaces.length + invitedWorkspaces.length === 0 && (
-            <button
-              className="absolute bottom-2 right-0 bg-white rounded-full shadow p-1.5 border-2 border-[#2563eb] hover:bg-[#e8f1fa] transition"
-              onClick={() => navigate("/profile")}
-              title="Editar perfil"
-            >
-              <Pencil className="w-5 h-5 text-[#2563eb]" />
-            </button>
-          )}
         </div>
         <div className="flex-1">
           <h1

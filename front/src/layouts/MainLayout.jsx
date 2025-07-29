@@ -17,6 +17,8 @@ import toast, { Toaster } from "react-hot-toast";
 import clsx from "clsx";
 import NtropiaLogo from "../components/Logo/NtropiaLogo";
 import NotificationsDropdown from "../components/common/NotificationsDropdown";
+import EditProfileModal from "../components/common/EditProfileModal";
+import { API_URL } from "../config";
 
 const navLinks = [
   { to: "/dashboard", label: "Inicio", icon: Home },
@@ -28,6 +30,7 @@ export default function MainLayout() {
   const clearUser = useAuthStore((s) => s.clearUser);
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
 
   function handleLogout() {
     toast("Cerrando sesión...", { icon: "👋" });
@@ -35,6 +38,12 @@ export default function MainLayout() {
     clearUser(); // Limpiar el store
     setTimeout(() => navigate("/login"), 1000);
   }
+
+  // Función para generar la URL del avatar
+  const getAvatarUrl = (avatarId) => {
+    if (!avatarId) return null;
+    return `${API_URL}/assets/${avatarId}`;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#101726] via-[#232C47] to-[#1C2338] flex flex-col">
@@ -95,12 +104,12 @@ export default function MainLayout() {
             <motion.div whileHover={{ scale: 1.06 }} className="group relative">
               <button
                 className="flex items-center gap-2 p-1 rounded-full hover:bg-white/10 transition"
-                onClick={() => navigate("/profile")}
+                onClick={() => setEditProfileModalOpen(true)}
               >
                 <span className="inline-block h-10 w-10 rounded-full overflow-hidden bg-[#e5e9f1] border-2 border-[#2563eb] shadow">
                   {user?.avatar ? (
                     <img
-                      src={user.avatar}
+                      src={getAvatarUrl(user.avatar)}
                       alt="avatar"
                       className="w-full h-full object-cover"
                     />
@@ -171,23 +180,31 @@ export default function MainLayout() {
               ))}
             </nav>
             <div className="mt-auto pt-12 flex items-center gap-3">
-              <span className="inline-block h-9 w-9 rounded-full overflow-hidden bg-[#e5e9f1] border-2 border-[#2563eb] shadow">
-                {user?.avatar ? (
-                  <img
-                    src={user.avatar}
-                    alt="avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <UserCircle className="w-9 h-9 text-[#2563eb]" />
-                )}
-              </span>
-              <div className="flex flex-col">
-                <span className="font-bold text-white text-sm">
-                  {user?.first_name}
+              <button
+                className="flex items-center gap-3 w-full"
+                onClick={() => {
+                  setSidebarOpen(false);
+                  setEditProfileModalOpen(true);
+                }}
+              >
+                <span className="inline-block h-9 w-9 rounded-full overflow-hidden bg-[#e5e9f1] border-2 border-[#2563eb] shadow">
+                  {user?.avatar ? (
+                    <img
+                      src={getAvatarUrl(user.avatar)}
+                      alt="avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <UserCircle className="w-9 h-9 text-[#2563eb]" />
+                  )}
                 </span>
-                <span className="text-xs text-white/70">{user?.email}</span>
-              </div>
+                <div className="flex flex-col text-left">
+                  <span className="font-bold text-white text-sm">
+                    {user?.first_name} {user?.last_name}
+                  </span>
+                  <span className="text-xs text-white/70">{user?.email}</span>
+                </div>
+              </button>
             </div>
             <button
               className="mt-6 px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-[#274B8A] text-white font-bold shadow transition flex items-center gap-2"
@@ -216,6 +233,12 @@ export default function MainLayout() {
           RacoonDevs
         </a>
       </footer>
+
+      {/* MODAL DE EDICIÓN DE PERFIL */}
+      <EditProfileModal
+        isOpen={editProfileModalOpen}
+        onClose={() => setEditProfileModalOpen(false)}
+      />
     </div>
   );
 }
