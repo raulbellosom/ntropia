@@ -4,8 +4,7 @@ import { io } from "socket.io-client";
 import { useCanvasStore } from "../store/useCanvasStore";
 
 // URL de tu socket-server
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_SERVER_URL || "http://localhost:4010";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:4010";
 const socket = io(SOCKET_URL, { autoConnect: false });
 
 export default function useSocketCanvas(workspaceId, userEmail) {

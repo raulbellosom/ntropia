@@ -69,8 +69,10 @@ services:
       - ./socket-server:/app
     ports:
       - "4010:4010"
+    env_file:
+      - .env
     environment:
-      - SOCKET_SERVER_PORT=4010
+      - SOCKET_SERVER_PORT=${SOCKET_SERVER_PORT}
       - FRONTEND_URL=${FRONTEND_URL}
     depends_on:
       - directus

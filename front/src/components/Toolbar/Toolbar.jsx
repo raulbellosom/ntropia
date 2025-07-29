@@ -180,7 +180,7 @@ export default function Toolbar() {
           width: 64,
           height: "auto",
           minHeight: 56,
-          maxHeight: "calc(100vh - 112px)",
+          maxHeight: "calc(100dvh - 112px)",
           overflow: "hidden",
         }}
       >
@@ -222,7 +222,7 @@ export default function Toolbar() {
                 "w-full flex-1 flex-col overflow-y-auto"
               )}
               style={{
-                maxHeight: "calc(100vh - 168px)", // Ajustado para evitar overflow
+                maxHeight: "calc(100dvh - 200px)", // Ajustado para evitar overflow
                 scrollbarWidth: "none",
                 msOverflowStyle: "none",
               }}
