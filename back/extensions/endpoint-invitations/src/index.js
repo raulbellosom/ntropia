@@ -1,6 +1,37 @@
 // back/extensions/endpoint-invitations/src/index.js
 
 import crypto from "crypto";
+import fetch from "node-fetch";
+
+// Función para emitir eventos al socket server
+async function emitSocketEvent(type, data, to = null, workspaceId = null) {
+  try {
+    const socketUrl = process.env.SOCKET_SERVER_URL || "http://localhost:4010";
+
+    const payload = { type, data };
+    if (to) payload.to = to;
+    if (workspaceId) payload.workspaceId = workspaceId;
+
+    console.log(`📤 Evento WebSocket enviado: ${type}`, payload);
+
+    const response = await fetch(`${socketUrl}/emit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Error emitiendo evento socket:", errorText);
+    } else {
+      console.log(`✅ Evento ${type} enviado correctamente`);
+    }
+  } catch (error) {
+    console.error("Error al conectar con socket server:", error);
+  }
+}
 
 export default (router, { database }) => {
   /**
@@ -121,16 +152,59 @@ export default (router, { database }) => {
       // 4) Si se acepta, insertar en workspace_members
       if (action === "accept") {
         const roleFromInvitation = "viewer"; // Rol por defecto
+        const newMemberId = crypto.randomUUID();
+
         await database("workspace_members").insert({
-          id: crypto.randomUUID(),
+          id: newMemberId,
           workspace_id: inv.workspace_id,
           user_id: req.accountability.user,
           invited_by: inv.invited_by,
           role: roleFromInvitation,
           status: "accepted",
         });
+
         console.log("👥 Usuario añadido al workspace");
+
+        // Obtener información completa del nuevo miembro para el evento
+        const newMember = await database("workspace_members as wm")
+          .join("directus_users as u", "wm.user_id", "u.id")
+          .where("wm.id", newMemberId)
+          .select(
+            "wm.id",
+            "wm.role",
+            "wm.user_id",
+            "wm.workspace_id",
+            "u.first_name",
+            "u.last_name",
+            "u.email",
+            "u.avatar"
+          )
+          .first();
+
+        // Emitir evento para actualizar la lista de miembros del workspace
+        await emitSocketEvent(
+          "workspace-member-added",
+          {
+            workspaceId: inv.workspace_id,
+            member: newMember,
+          },
+          newMember.email, // to - para notificar al nuevo miembro
+          inv.workspace_id // workspaceId - para notificar al workspace
+        );
       }
+
+      // 5) Emitir evento de socket para notificar al usuario que se actualizó su lista de invitaciones
+      await emitSocketEvent(
+        "invitation-updated",
+        {
+          workspaceId: inv.workspace_id,
+          invitationId: inv.id,
+          action: action,
+          status: newStatus,
+        },
+        inv.email, // to - para notificar al usuario invitado
+        inv.workspace_id // workspaceId - para notificar al workspace
+      );
 
       return res.json({ success: true, action });
     } catch (err) {

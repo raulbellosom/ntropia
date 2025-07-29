@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./components/Auth/LoginPage";
 import RegisterPage from "./components/Auth/RegisterPage";
 import AcceptInvitationPage from "./components/Auth/AcceptInvitationPage";
+import ResetPasswordPage from "./components/Auth/ResetPasswordPage";
 import DashboardHome from "./components/Dashboard/DashboardHome";
 import WorkspacePage from "./components/Workspace/WorkspacePage";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -21,8 +22,9 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
       </Route>
 
-      {/* Invitación: accesible siempre, incluso si ya estás logueado */}
+      {/* Rutas especiales: accesibles siempre, sin importar estado de autenticación */}
       <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* Protegido: dashboard, workspaces, etc */}
       <Route element={<ProtectedRoute />}>

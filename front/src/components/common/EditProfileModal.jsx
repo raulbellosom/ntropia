@@ -1,22 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
-import { Camera, Eye, EyeOff, Loader2, User, Mail, Lock } from "lucide-react";
+import { Camera, Loader2, User, Mail, Lock } from "lucide-react";
 import ModalWrapper from "./ModalWrapper";
 import useAuthStore from "../../store/useAuthStore";
-import { useUpdateProfile, useUpdatePassword } from "../../hooks/useAuth";
+import { useUpdateProfile, useRequestPasswordReset } from "../../hooks/useAuth";
 import { useUploadFile } from "../../hooks/useFiles";
 
 export default function EditProfileModal({ isOpen, onClose }) {
   const user = useAuthStore((s) => s.user);
   const [activeTab, setActiveTab] = useState("profile");
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
 
   const updateProfile = useUpdateProfile();
-  const updatePassword = useUpdatePassword();
+  const requestPasswordReset = useRequestPasswordReset();
   const uploadFile = useUploadFile();
 
   // Form para información básica
@@ -25,14 +23,6 @@ export default function EditProfileModal({ isOpen, onClose }) {
       first_name: "",
       last_name: "",
       email: "",
-    },
-  });
-
-  // Form para contraseña
-  const passwordForm = useForm({
-    defaultValues: {
-      new_password: "",
-      confirm_password: "",
     },
   });
 
@@ -95,30 +85,25 @@ export default function EditProfileModal({ isOpen, onClose }) {
     }
   };
 
-  // Cambiar contraseña
-  const handleChangePassword = async (data) => {
-    if (data.new_password !== data.confirm_password) {
-      toast.error("Las contraseñas no coinciden");
-      return;
-    }
-
+  // Solicitar reset de contraseña por correo
+  const handleRequestPasswordReset = async () => {
     try {
-      await updatePassword.mutateAsync({
-        new_password: data.new_password,
-      });
-
-      toast.success("Contraseña actualizada correctamente");
-      passwordForm.reset();
-      setActiveTab("profile");
+      await requestPasswordReset.mutateAsync();
+      toast.success(
+        "Se ha enviado un correo electrónico con las instrucciones para cambiar la contraseña"
+      );
+      onClose(); // Cerrar el modal después de enviar el correo
     } catch (error) {
-      console.error("Error updating password:", error);
-      toast.error("Error al actualizar la contraseña");
+      console.error("Error requesting password reset:", error);
+      const errorMessage =
+        error.response?.data?.error ||
+        "Error al solicitar el cambio de contraseña";
+      toast.error(errorMessage);
     }
   };
 
   const handleClose = () => {
     profileForm.reset();
-    passwordForm.reset();
     setAvatarFile(null);
     setAvatarPreview(null);
     setActiveTab("profile");
@@ -126,7 +111,9 @@ export default function EditProfileModal({ isOpen, onClose }) {
   };
 
   const isLoading =
-    updateProfile.isPending || updatePassword.isPending || uploadFile.isPending;
+    updateProfile.isPending ||
+    requestPasswordReset.isPending ||
+    uploadFile.isPending;
 
   return (
     <ModalWrapper
@@ -172,9 +159,9 @@ export default function EditProfileModal({ isOpen, onClose }) {
             <div className="flex flex-col items-center space-y-4">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full border-4 border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center">
-                  {avatarPreview ? (
+                  {avatarPreview || user?.avatar ? (
                     <img
-                      src={avatarPreview}
+                      src={avatarPreview || user?.avatar}
                       alt="Avatar"
                       className="w-full h-full object-cover"
                     />
@@ -286,101 +273,40 @@ export default function EditProfileModal({ isOpen, onClose }) {
         )}
 
         {activeTab === "password" && (
-          <form
-            onSubmit={passwordForm.handleSubmit(handleChangePassword)}
-            className="space-y-4"
-          >
-            {/* Nueva contraseña */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nueva contraseña
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                <input
-                  {...passwordForm.register("new_password", {
-                    required: "La nueva contraseña es requerida",
-                    minLength: {
-                      value: 6,
-                      message: "La contraseña debe tener al menos 6 caracteres",
-                    },
-                  })}
-                  type={showNewPassword ? "text" : "password"}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nueva contraseña"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                >
-                  {showNewPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-              {passwordForm.formState.errors.new_password && (
-                <p className="text-red-500 text-sm mt-1">
-                  {passwordForm.formState.errors.new_password.message}
-                </p>
-              )}
+          <div className="space-y-6">
+            <div className="text-center">
+              <Lock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Cambiar contraseña
+              </h3>
+              <p className="text-sm text-gray-600 mb-6">
+                Te enviaremos un correo electrónico con las instrucciones para
+                cambiar tu contraseña de forma segura.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleRequestPasswordReset}
+                disabled={requestPasswordReset.isPending}
+                className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {requestPasswordReset.isPending && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                Enviar correo de cambio de contraseña
+              </button>
             </div>
 
-            {/* Confirmar contraseña */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirmar nueva contraseña
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                <input
-                  {...passwordForm.register("confirm_password", {
-                    required: "Confirma la nueva contraseña",
-                  })}
-                  type={showConfirmPassword ? "text" : "password"}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Confirmar nueva contraseña"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-              {passwordForm.formState.errors.confirm_password && (
-                <p className="text-red-500 text-sm mt-1">
-                  {passwordForm.formState.errors.confirm_password.message}
-                </p>
-              )}
-            </div>
-
-            {/* Botones */}
-            <div className="flex justify-end space-x-3 pt-4">
+            <div className="text-center pt-4 border-t border-gray-200">
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
               >
                 Cancelar
               </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Cambiar contraseña
-              </button>
             </div>
-          </form>
+          </div>
         )}
       </div>
     </ModalWrapper>

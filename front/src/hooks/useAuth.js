@@ -76,6 +76,12 @@ export function useLogout() {
   const clearUser = useAuthStore((s) => s.clearUser);
 
   return () => {
+    // Importar y desconectar socket
+    import("./useSocketClient").then(({ useSocketClient }) => {
+      const { disconnect } = useSocketClient();
+      disconnect();
+    });
+
     localStorage.removeItem("access_token");
     clearUser();
     queryClient.clear();
@@ -104,7 +110,37 @@ export function useUpdateProfile() {
   });
 }
 
-// Hook para cambiar contraseña
+// Hook para solicitar reset de contraseña (usuario autenticado)
+export function useRequestPasswordReset() {
+  return useMutation({
+    mutationFn: authService.requestPasswordReset,
+    onError: (error) => {
+      console.error("Error requesting password reset:", error);
+    },
+  });
+}
+
+// Hook para solicitar reset de contraseña (usuario NO autenticado - desde login)
+export function useRequestPasswordResetPublic() {
+  return useMutation({
+    mutationFn: authService.requestPasswordResetPublic,
+    onError: (error) => {
+      console.error("Error requesting password reset:", error);
+    },
+  });
+}
+
+// Hook para resetear contraseña con token
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: authService.resetPassword,
+    onError: (error) => {
+      console.error("Error resetting password:", error);
+    },
+  });
+}
+
+// Hook para cambiar contraseña (legacy)
 export function useUpdatePassword() {
   return useMutation({
     mutationFn: authService.updatePassword,

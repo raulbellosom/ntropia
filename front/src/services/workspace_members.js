@@ -17,10 +17,20 @@ export const getWorkspaceMember = (id) =>
 export const createWorkspaceMember = (data) =>
   api.post("/items/workspace_members", data);
 
-// Update workspace member
+// Update workspace member (usando endpoint nativo para compatibilidad)
 export const updateWorkspaceMember = (id, data) =>
   api.patch(`/items/workspace_members/${id}`, data);
 
-// Remove workspace member
+// Update workspace member role (usando el nuevo endpoint con WebSocket)
+export const updateWorkspaceMemberRole = (workspaceId, memberId, role) =>
+  api.post(`/endpoint-workspaces/${workspaceId}/members/${memberId}/role`, {
+    role,
+  });
+
+// Remove workspace member (usando endpoint nativo para compatibilidad)
 export const deleteWorkspaceMember = (id) =>
   api.delete(`/items/workspace_members/${id}`);
+
+// Remove workspace member (usando el nuevo endpoint con WebSocket)
+export const removeWorkspaceMember = (workspaceId, memberId) =>
+  api.delete(`/endpoint-workspaces/${workspaceId}/members/${memberId}`);

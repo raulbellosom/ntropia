@@ -30,6 +30,10 @@ io.on("connection", (socket) => {
   socket.on("join", (email) => {
     socket.join(email);
     console.log(`📨 ${socket.id} se unió a sala de email: ${email}`);
+    console.log(
+      `🔍 [DEBUG] Salas actuales del socket:`,
+      Array.from(socket.rooms)
+    );
   });
 
   // Sala de colaboración por workspace
@@ -61,6 +65,11 @@ app.post("/emit", (req, res) => {
   }
 
   // Emitir evento a la sala correspondiente
+  console.log(`🔍 [DEBUG] Emitiendo evento "${type}" a sala: ${room}`);
+  console.log(
+    `🔍 [DEBUG] Sockets en sala "${room}":`,
+    io.sockets.adapter.rooms.get(room) || new Set()
+  );
   io.to(room).emit(type, data);
   console.log(`📣 Evento "${type}" emitido a sala: ${room}`, data);
   return res.status(200).json({ success: true });

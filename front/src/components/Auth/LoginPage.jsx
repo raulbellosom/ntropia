@@ -1,10 +1,11 @@
 // src/components/Auth/LoginPage.jsx
 import React, { useMemo, useState } from "react";
-import { LogIn, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { LogIn, Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
-import { useLogin } from "../../hooks/useAuth";
+import { useLogin, useRequestPasswordResetPublic } from "../../hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "react-hot-toast";
 import NtropiaLogo from "../Logo/NtropiaLogo";
 import LandingLayout from "../../layouts/LandingLayout";
 
@@ -20,7 +21,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+
   const login = useLogin();
+  const requestPasswordReset = useRequestPasswordResetPublic();
   const queryClient = useQueryClient();
 
   const navigate = useNavigate();
@@ -41,6 +46,31 @@ export default function LoginPage() {
       navigate(next);
     } catch (error) {
       setError("Correo o contraseña incorrectos.");
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+
+    if (!forgotEmail) {
+      toast.error("Por favor ingresa tu correo electrónico");
+      return;
+    }
+
+    try {
+      await requestPasswordReset.mutateAsync(forgotEmail);
+      toast.success(
+        "Si el correo está registrado, recibirás instrucciones para restablecer tu contraseña"
+      );
+      setShowForgotPassword(false);
+      setForgotEmail("");
+    } catch (error) {
+      // No mostramos el error específico por seguridad
+      toast.success(
+        "Si el correo está registrado, recibirás instrucciones para restablecer tu contraseña"
+      );
+      setShowForgotPassword(false);
+      setForgotEmail("");
     }
   };
 
@@ -134,6 +164,18 @@ export default function LoginPage() {
               {login.isPending ? "Entrando..." : "Entrar"}
             </button>
           </form>
+
+          {/* Enlace ¿Olvidaste tu contraseña? */}
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={() => setShowForgotPassword(true)}
+              className="text-sm text-sky-600 hover:text-sky-700 hover:underline"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+
           <div className="text-center text-sm mt-6 text-gray-500">
             ¿No tienes cuenta?{" "}
             <Link
@@ -145,6 +187,78 @@ export default function LoginPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Modal ¿Olvidaste tu contraseña? */}
+      <AnimatePresence>
+        {showForgotPassword && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowForgotPassword(false)}
+          >
+            <motion.div
+              className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-6">
+                <Mail className="w-12 h-12 text-sky-600 mx-auto mb-3" />
+                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                  ¿Olvidaste tu contraseña?
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Ingresa tu correo electrónico y te enviaremos instrucciones
+                  para restablecer tu contraseña
+                </p>
+              </div>
+
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="email"
+                    className="w-full py-2 pl-10 pr-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-sky-500 outline-none"
+                    placeholder="tu.correo@ejemplo.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                    autoFocus
+                    disabled={requestPasswordReset.isPending}
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setForgotEmail("");
+                    }}
+                    className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                    disabled={requestPasswordReset.isPending}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={requestPasswordReset.isPending}
+                    className="flex-1 bg-sky-600 hover:bg-sky-700 text-white py-2 px-4 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                    {requestPasswordReset.isPending && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    Enviar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </LandingLayout>
   );
 }

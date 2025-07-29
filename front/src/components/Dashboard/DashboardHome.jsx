@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PlusCircle, UserCircle, Pencil, Loader2 } from "lucide-react";
+import { PlusCircle, UserCircle, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import CreateWorkspaceModal from "../Workspace/WorkspaceModal";
 import useAuthStore from "../../store/useAuthStore";
@@ -10,10 +10,11 @@ import { useDeleteFiles } from "../../hooks/useFiles";
 import { toast } from "react-hot-toast";
 import WorkspaceConfigModal from "../Workspace/WorkspaceConfigModal";
 import WorkspaceCard from "../Workspace/WorkspaceCard";
-import ImageWithDirectusUrl from "../common/ImageWithDirectusUrl";
+import { useDirectusImage } from "../../hooks/useDirectusImage";
 
 export default function DashboardHome() {
   const user = useAuthStore((s) => s.user);
+  const imageUrl = useDirectusImage(user?.avatar || "");
   const {
     data: workspacesData,
     isLoading: loadingWs,
@@ -86,9 +87,9 @@ export default function DashboardHome() {
                 : "h-14 w-14"
             }`}
           >
-            {user?.avatar ? (
-              <ImageWithDirectusUrl
-                src={user.avatar}
+            {imageUrl ? (
+              <img
+                src={imageUrl}
                 alt="avatar"
                 className="h-full w-full object-cover"
               />

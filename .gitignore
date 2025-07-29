@@ -1,3 +1,6 @@
 */.env
 # ignora todos los node_modules dentro de cualquier directorio
 node_modules/
+# ignora todos los package-lock.json en cualquier ubicación
+**/package-lock.json
+package-lock.json

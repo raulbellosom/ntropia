@@ -18,8 +18,7 @@ import clsx from "clsx";
 import NtropiaLogo from "../components/Logo/NtropiaLogo";
 import NotificationsDropdown from "../components/common/NotificationsDropdown";
 import EditProfileModal from "../components/common/EditProfileModal";
-import { API_URL } from "../config";
-import ImageWithDirectusUrl from "../components/common/ImageWithDirectusUrl";
+import { useDirectusImage } from "../hooks/useDirectusImage";
 
 const navLinks = [
   { to: "/dashboard", label: "Inicio", icon: Home },
@@ -28,6 +27,7 @@ const navLinks = [
 
 export default function MainLayout() {
   const user = useAuthStore((s) => s.user);
+  const imageUrl = useDirectusImage(user?.avatar || "");
   const clearUser = useAuthStore((s) => s.clearUser);
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -39,12 +39,6 @@ export default function MainLayout() {
     clearUser(); // Limpiar el store
     setTimeout(() => navigate("/login"), 1000);
   }
-
-  // Función para generar la URL del avatar
-  const getAvatarUrl = (avatarId) => {
-    if (!avatarId) return null;
-    return `${API_URL}/assets/${avatarId}`;
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#101726] via-[#232C47] to-[#1C2338] flex flex-col">
@@ -108,9 +102,9 @@ export default function MainLayout() {
                 onClick={() => setEditProfileModalOpen(true)}
               >
                 <span className="inline-block h-10 w-10 rounded-full overflow-hidden bg-[#e5e9f1] border-2 border-[#2563eb] shadow">
-                  {user?.avatar ? (
-                    <ImageWithDirectusUrl
-                      src={user.avatar}
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
                       alt="avatar"
                       className="w-full h-full object-cover"
                     />
@@ -189,9 +183,9 @@ export default function MainLayout() {
                 }}
               >
                 <span className="inline-block h-9 w-9 rounded-full overflow-hidden bg-[#e5e9f1] border-2 border-[#2563eb] shadow">
-                  {user?.avatar ? (
-                    <ImageWithDirectusUrl
-                      src={user.avatar}
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
                       alt="avatar"
                       className="w-full h-full object-cover"
                     />

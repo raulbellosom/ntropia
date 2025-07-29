@@ -4,6 +4,36 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 
 export default ({ filter, action }) => {
+  // Función auxiliar para emitir eventos de socket
+  const emitSocketEvent = async (type, data, to = null, workspaceId = null) => {
+    try {
+      const socketUrl =
+        process.env.SOCKET_SERVER_URL || "http://localhost:4010";
+
+      const payload = { type, data };
+      if (to) payload.to = to;
+      if (workspaceId) payload.workspaceId = workspaceId;
+
+      console.log(`📤 Evento WebSocket enviado: ${type}`, payload);
+
+      const response = await fetch(`${socketUrl}/emit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error emitiendo evento socket:", errorText);
+      } else {
+        console.log(`✅ Evento ${type} enviado correctamente`);
+      }
+    } catch (error) {
+      console.error("Error al conectar con socket server:", error);
+    }
+  };
   // 1. Debug al iniciar el servidor
   action("server.start", () => {
     console.log("🛠️ [DEBUG] Hook de arranque cargado");
@@ -140,36 +170,199 @@ export default ({ filter, action }) => {
     return payload;
   });
 
-  // 3. Después de crear un ítem en 'invitations' (solo logging)
-  action("invitations.items.create", (meta) => {
+  // 3. Después de crear un ítem en 'invitations' (logging + WebSocket event)
+  action("invitations.items.create", async (meta, { database }) => {
     console.log("✅ Item de invitación creado:", meta.payload);
+
+    try {
+      // Obtener información completa de la invitación
+      const invitation = await database("invitations as i")
+        .leftJoin("directus_users as u", "u.id", "i.invited_by")
+        .leftJoin("workspaces as w", "w.id", "i.workspace_id")
+        .where("i.id", meta.key)
+        .select(
+          "i.id",
+          "i.email",
+          "i.workspace_id",
+          "i.status",
+          "i.date_created",
+          "u.first_name as inviter_first_name",
+          "u.last_name as inviter_last_name",
+          "u.email as inviter_email",
+          "w.name as workspace_name"
+        )
+        .first();
+
+      if (invitation) {
+        console.log("🔍 [DEBUG] Enviando evento new-invitation:", {
+          invitationId: invitation.id,
+          email: invitation.email,
+          workspaceName: invitation.workspace_name,
+          inviterName: `${invitation.inviter_first_name} ${invitation.inviter_last_name}`,
+        });
+
+        // Emitir evento para el usuario invitado (notificación personal)
+        await emitSocketEvent(
+          "new-invitation",
+          {
+            invitationId: invitation.id,
+            workspaceName: invitation.workspace_name,
+            inviterName: `${invitation.inviter_first_name} ${invitation.inviter_last_name}`,
+            token: meta.payload.token,
+            workspaceId: invitation.workspace_id,
+          },
+          invitation.email // to - para notificar al usuario invitado
+        );
+
+        // Emitir evento para actualizar las invitaciones del workspace
+        await emitSocketEvent(
+          "invitation-created",
+          {
+            workspaceId: invitation.workspace_id,
+            invitation: {
+              id: invitation.id,
+              email: invitation.email,
+              status: invitation.status,
+              date_created: invitation.date_created,
+              invited_by: {
+                first_name: invitation.inviter_first_name,
+                last_name: invitation.inviter_last_name,
+                email: invitation.inviter_email,
+              },
+            },
+          },
+          invitation.email, // to - para notificar al usuario invitado
+          invitation.workspace_id // workspaceId - para notificar al workspace
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Error enviando evento WebSocket de invitación creada:",
+        error
+      );
+    }
   });
 
-  // 4. Cuando se actualiza una invitación a 'accepted'
+  // 4. Hook para cuando se elimina una invitación
+  filter("invitations.items.delete", async (payload, meta, context) => {
+    const { database } = context;
+
+    try {
+      // Obtener información de las invitaciones antes de eliminarlas
+      const invitations = await database("invitations")
+        .whereIn("id", meta.keys)
+        .select("id", "workspace_id", "email");
+
+      // Guardar en el contexto para usar en el action posterior
+      meta.invitationsToDelete = invitations;
+    } catch (error) {
+      console.error("Error obteniendo invitaciones para eliminar:", error);
+    }
+
+    return payload;
+  });
+
+  // Action para después de eliminar invitaciones
+  action("invitations.items.delete", async (meta) => {
+    console.log("🗑️ Invitación(es) eliminada(s):", meta.keys);
+
+    try {
+      // Usar la información guardada en el filter
+      const invitationsToDelete = meta.invitationsToDelete || [];
+
+      for (const invitation of invitationsToDelete) {
+        // Emitir evento para actualizar las invitaciones del workspace
+        await emitSocketEvent(
+          "invitation-deleted",
+          {
+            workspaceId: invitation.workspace_id,
+            invitationId: invitation.id,
+          },
+          invitation.email, // to - para notificar al usuario invitado
+          invitation.workspace_id // workspaceId - para notificar al workspace
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Error enviando evento WebSocket de invitación eliminada:",
+        error
+      );
+    }
+  });
+
+  // 5. Cuando se actualiza una invitación a 'accepted'
   action(
     "invitations.items.update",
     async ({ key, payload }, { database, accountability, exceptions }) => {
-      if (payload.status === "accepted") {
-        const inv = await database
-          .select("*")
-          .from("invitations")
-          .where({ id: key })
+      try {
+        // Obtener información completa de la invitación actualizada
+        const invitation = await database("invitations as i")
+          .leftJoin("directus_users as u", "u.id", "i.invited_by")
+          .where("i.id", key)
+          .select(
+            "i.id",
+            "i.email",
+            "i.workspace_id",
+            "i.status",
+            "i.date_updated",
+            "u.first_name as inviter_first_name",
+            "u.last_name as inviter_last_name",
+            "u.email as inviter_email"
+          )
           .first();
-        if (!inv) {
-          throw new exceptions.NotFoundException("Invitación no encontrada");
+
+        if (invitation) {
+          // Emitir evento para actualizar las invitaciones del workspace
+          await emitSocketEvent(
+            "invitation-updated",
+            {
+              workspaceId: invitation.workspace_id,
+              invitation: {
+                id: invitation.id,
+                email: invitation.email,
+                status: invitation.status,
+                date_updated: invitation.date_updated,
+                invited_by: {
+                  first_name: invitation.inviter_first_name,
+                  last_name: invitation.inviter_last_name,
+                  email: invitation.inviter_email,
+                },
+              },
+            },
+            invitation.email, // to - para notificar al usuario invitado
+            invitation.workspace_id // workspaceId - para notificar al workspace
+          );
         }
-        await database
-          .insert({
-            workspace_id: inv.workspace_id,
-            user_id: accountability.user,
-            invited_by: inv.invited_by,
-            status: "accepted",
-            created_at: new Date(),
-          })
-          .into("workspace_members");
-        console.log(
-          `👥 Usuario ${accountability.user} añadido al workspace ${inv.workspace_id}`
-        );
+
+        // Lógica original para cuando se acepta
+        if (payload.status === "accepted") {
+          const inv = await database
+            .select("*")
+            .from("invitations")
+            .where({ id: key })
+            .first();
+          if (!inv) {
+            throw new exceptions.NotFoundException("Invitación no encontrada");
+          }
+          await database
+            .insert({
+              workspace_id: inv.workspace_id,
+              user_id: accountability.user,
+              invited_by: inv.invited_by,
+              status: "accepted",
+              created_at: new Date(),
+            })
+            .into("workspace_members");
+          console.log(
+            `👥 Usuario ${accountability.user} añadido al workspace ${inv.workspace_id}`
+          );
+        }
+      } catch (error) {
+        console.error("Error en update de invitación:", error);
+        // Re-lanzar errores de negocio pero no errores de WebSocket
+        if (error.code) {
+          throw error;
+        }
       }
     }
   );

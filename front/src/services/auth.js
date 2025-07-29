@@ -14,10 +14,31 @@ export const register = ({ email, password, first_name, last_name }) =>
 export const getMe = () =>
   api.get("/users/me?fields=id,first_name,last_name,email,avatar");
 
-// Cambiar contraseña del usuario actual
-export const updatePassword = ({ new_password }) => {
-  return api.patch("/users/me", {
-    password: new_password,
+// Solicitar reset de contraseña por correo (usuario autenticado)
+export const requestPasswordReset = () => {
+  return api.post("/reset-password/request");
+};
+
+// Solicitar reset de contraseña por correo (usuario NO autenticado - desde login)
+export const requestPasswordResetPublic = (email) => {
+  return api.post("/reset-password/public-request", {
+    email,
+  });
+};
+
+// Cambiar contraseña usando token de reset
+export const resetPassword = ({ token, password }) => {
+  return api.post("/reset-password/change", {
+    token,
+    password,
+  });
+};
+
+// Función legacy - mantener por compatibilidad
+export const updatePassword = ({ current_password, new_password }) => {
+  return api.post("/reset-password/change", {
+    current_password,
+    new_password,
   });
 };
 

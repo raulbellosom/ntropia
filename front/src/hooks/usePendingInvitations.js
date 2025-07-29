@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
 import useAuthStore from "../store/useAuthStore";
+import useNotificationStore from "../store/useNotificationStore";
 
 // Hook para obtener invitaciones pendientes del usuario actual
 export function usePendingInvitations() {
@@ -18,13 +19,17 @@ export function usePendingInvitations() {
       return response.data.data || [];
     },
     enabled: !!user?.email,
-    refetchInterval: 30000, // Refrescar cada 30 segundos
+    // Eliminamos refetchInterval para evitar polling
+    staleTime: 1000 * 60 * 5, // Los datos son válidos por 5 minutos
   });
 }
 
 // Hook para aceptar invitación
 export function useAcceptPendingInvitation() {
   const queryClient = useQueryClient();
+  const removeNotificationByInvitationId = useNotificationStore(
+    (state) => state.removeNotificationByInvitationId
+  );
 
   return useMutation({
     mutationFn: async (invitationId) => {
@@ -34,7 +39,10 @@ export function useAcceptPendingInvitation() {
       });
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data, invitationId) => {
+      // Limpiar notificación relacionada
+      removeNotificationByInvitationId(invitationId);
+
       queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     },
@@ -44,6 +52,9 @@ export function useAcceptPendingInvitation() {
 // Hook para rechazar invitación
 export function useRejectPendingInvitation() {
   const queryClient = useQueryClient();
+  const removeNotificationByInvitationId = useNotificationStore(
+    (state) => state.removeNotificationByInvitationId
+  );
 
   return useMutation({
     mutationFn: async (invitationId) => {
@@ -52,7 +63,10 @@ export function useRejectPendingInvitation() {
       });
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data, invitationId) => {
+      // Limpiar notificación relacionada
+      removeNotificationByInvitationId(invitationId);
+
       queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
     },
   });

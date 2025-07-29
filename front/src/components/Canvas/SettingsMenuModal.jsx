@@ -190,54 +190,146 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
   };
 
   // Export settings
-  const stageRef = window.__konvaStageRef;
-
   const handleExport = (type) => {
-    if (!stageRef) return;
+    const stageRef = window.__konvaStageRef;
 
-    // Guarda zoom/pan actuales
-    const stage = stageRef;
-    const origScale = { x: stage.scaleX(), y: stage.scaleY() };
-    const origPos = { x: stage.x(), y: stage.y() };
+    if (!stageRef) {
+      toast.error("No se pudo encontrar el canvas para exportar");
+      return;
+    }
 
-    // Offset del Group (mesa de trabajo)
-    const offset = window.__konvaOffset || { x: 0, y: 0 };
-    const width = canvasWidth;
-    const height = canvasHeight;
+    try {
+      const stage = stageRef;
 
-    // Forzar Stage a escala 1 y sin pan
-    stage.scale({ x: 1, y: 1 });
-    stage.position({ x: 0, y: 0 });
-    stage.batchDraw();
+      // Guarda zoom/pan actuales
+      const origScale = { x: stage.scaleX(), y: stage.scaleY() };
+      const origPos = { x: stage.x(), y: stage.y() };
 
-    // Opcional: forzar fondo blanco para JPG
-    const backgroundRect = stage.findOne("#background-rect");
-    const prevFill = backgroundRect ? backgroundRect.fill() : null;
-    if (type === "jpg" && backgroundRect) backgroundRect.fill("#fff");
+      // Calcular el offset del workspace (área centrada)
+      const stageWidth = stage.width();
+      const stageHeight = stage.height();
+      const workspaceOffset = {
+        x: (stageWidth - canvasWidth) / 2,
+        y: (stageHeight - canvasHeight) / 2,
+      };
 
-    // Exporta solo el área lógica
-    const uri = stage.toDataURL({
-      x: offset.x,
-      y: offset.y,
-      width,
-      height,
-      pixelRatio: 3,
-      mimeType: type === "jpg" ? "image/jpeg" : "image/png",
-      quality: type === "jpg" ? 1 : undefined,
-    });
+      // Buscar el grupo del workspace o usar el offset calculado
+      let exportArea = {
+        x: workspaceOffset.x,
+        y: workspaceOffset.y,
+        width: canvasWidth,
+        height: canvasHeight,
+      };
 
-    // Restaura todo a como estaba
-    stage.scale(origScale);
-    stage.position(origPos);
-    stage.batchDraw();
-    if (type === "jpg" && backgroundRect && prevFill)
-      backgroundRect.fill(prevFill);
+      // Intentar encontrar el grupo del workspace para ser más preciso
+      const workspaceGroup =
+        stage.findOne("#workspace-group") ||
+        stage.findOne(".workspace-group") ||
+        stage.findOne('[name="workspace-group"]');
 
-    // Descarga
-    const link = document.createElement("a");
-    link.download = `canvas.${type}`;
-    link.href = uri;
-    link.click();
+      if (workspaceGroup) {
+        exportArea.x = workspaceGroup.x();
+        exportArea.y = workspaceGroup.y();
+        console.log("Workspace group found at:", exportArea.x, exportArea.y);
+      } else {
+        // Buscar el rectángulo de fondo del workspace
+        const backgroundRect =
+          stage.findOne("#background-rect") ||
+          stage.findOne('[name="background-rect"]');
+        if (backgroundRect) {
+          const groupParent = backgroundRect.getParent();
+          if (groupParent && groupParent.getClassName() === "Group") {
+            exportArea.x = groupParent.x();
+            exportArea.y = groupParent.y();
+            console.log(
+              "Background rect parent group found at:",
+              exportArea.x,
+              exportArea.y
+            );
+          }
+        }
+      }
+
+      // Resetear transformaciones para exportar en escala 1:1
+      stage.scale({ x: 1, y: 1 });
+      stage.position({ x: 0, y: 0 });
+      stage.batchDraw();
+
+      // Configurar parámetros de exportación
+      const pixelRatio = 2; // Para mejor calidad
+      let mimeType = "image/png";
+      let quality = 1;
+
+      if (type === "jpg") {
+        mimeType = "image/jpeg";
+        quality = 0.9;
+
+        // Para JPG, asegurar fondo blanco en el rectángulo de fondo
+        const backgroundRect = stage.findOne("#background-rect");
+        if (backgroundRect) {
+          const originalFill = backgroundRect.fill();
+          backgroundRect.fill("#FFFFFF");
+          stage.batchDraw();
+
+          // Restaurar después de un momento
+          setTimeout(() => {
+            backgroundRect.fill(originalFill);
+            stage.batchDraw();
+          }, 100);
+        }
+      }
+
+      console.log("Exporting area:", exportArea);
+
+      // Exportar solo el área del workspace
+      const uri = stage.toDataURL({
+        x: exportArea.x,
+        y: exportArea.y,
+        width: exportArea.width,
+        height: exportArea.height,
+        pixelRatio: pixelRatio,
+        mimeType: mimeType,
+        quality: quality,
+      });
+
+      // Restaurar transformaciones originales
+      stage.scale(origScale);
+      stage.position(origPos);
+      stage.batchDraw();
+
+      if (type === "pdf") {
+        // Para PDF, usaremos jsPDF
+        import("jspdf")
+          .then(({ jsPDF }) => {
+            const pdf = new jsPDF({
+              orientation:
+                exportArea.width > exportArea.height ? "landscape" : "portrait",
+              unit: "px",
+              format: [exportArea.width, exportArea.height],
+            });
+
+            pdf.addImage(uri, "PNG", 0, 0, exportArea.width, exportArea.height);
+            pdf.save(`canvas-${Date.now()}.pdf`);
+            toast.success("Canvas exportado como PDF");
+          })
+          .catch((error) => {
+            console.error("Error loading jsPDF:", error);
+            toast.error("Error al cargar la librería PDF");
+          });
+      } else {
+        // Para PNG y JPG, descarga directa
+        const link = document.createElement("a");
+        link.download = `canvas-${Date.now()}.${type}`;
+        link.href = uri;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success(`Canvas exportado como ${type.toUpperCase()}`);
+      }
+    } catch (error) {
+      console.error("Error exporting canvas:", error);
+      toast.error(`Error al exportar el canvas: ${error.message}`);
+    }
   };
 
   // 🚀 Handler para cambio de imagen en tiempo real
@@ -527,21 +619,28 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
               </h3>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  className="flex items-center gap-2 px-4 py-2 rounded bg-blue-600 text-white font-semibold w-full sm:w-auto"
+                  className="flex items-center gap-2 px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold w-full sm:w-auto transition-colors"
                   onClick={() => handleExport("png")}
                 >
                   <Download size={16} /> PNG
                 </button>
                 <button
-                  className="flex items-center gap-2 px-4 py-2 rounded bg-green-600 text-white font-semibold w-full sm:w-auto"
+                  className="flex items-center gap-2 px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white font-semibold w-full sm:w-auto transition-colors"
                   onClick={() => handleExport("jpg")}
                 >
                   <Download size={16} /> JPG
                 </button>
+                <button
+                  className="flex items-center gap-2 px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-semibold w-full sm:w-auto transition-colors"
+                  onClick={() => handleExport("pdf")}
+                >
+                  <FileText size={16} /> PDF
+                </button>
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                Solo se exportará la zona de trabajo actual. Las figuras fuera
-                del área se recortan.
+                Solo se exportará la zona de trabajo actual ({canvasWidth}x
+                {canvasHeight}px). Las figuras fuera del área del workspace
+                serán recortadas.
               </p>
             </div>
           )}
