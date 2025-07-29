@@ -19,6 +19,7 @@ import NtropiaLogo from "../components/Logo/NtropiaLogo";
 import NotificationsDropdown from "../components/common/NotificationsDropdown";
 import EditProfileModal from "../components/common/EditProfileModal";
 import { API_URL } from "../config";
+import ImageWithDirectusUrl from "../components/common/ImageWithDirectusUrl";
 
 const navLinks = [
   { to: "/dashboard", label: "Inicio", icon: Home },
@@ -189,8 +190,8 @@ export default function MainLayout() {
               >
                 <span className="inline-block h-9 w-9 rounded-full overflow-hidden bg-[#e5e9f1] border-2 border-[#2563eb] shadow">
                   {user?.avatar ? (
-                    <img
-                      src={getAvatarUrl(user.avatar)}
+                    <ImageWithDirectusUrl
+                      src={user.avatar}
                       alt="avatar"
                       className="w-full h-full object-cover"
                     />
