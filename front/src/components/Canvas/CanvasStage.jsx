@@ -1,8 +1,10 @@
 // src/components/Canvas/CanvasStage.jsx
 
 import React, { useRef, useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { Stage, Layer, Group, Rect, Image as KonvaImage } from "react-konva";
 import useImage from "use-image";
+
 import { useCanvasStore } from "../../store/useCanvasStore";
 import useZoomPan from "../../hooks/useZoomPan";
 import useCanvasShortcuts from "../../hooks/useCanvasShortcuts";
@@ -11,30 +13,43 @@ import useSelectionBox from "../../hooks/useSelectionBox";
 import useContextMenu from "../../hooks/useContextMenu";
 import useImageUpload from "../../hooks/useImageUpload";
 import { getCanvasPosition as getCanvasPosUtil } from "../../utils/canvas";
+
 import Grid from "./Grid";
 import CanvasLayers from "./CanvasLayers";
 import ContextMenu from "./ContextMenu";
 import SelectBox from "./SelectBox";
 import MultiTransformer from "./MultiTransformer";
 import MarkerModal from "../Marker/MarkerModal";
+
 import { GRID_CELL_SIZE } from "../../utils/constants";
 import { useEditMode } from "../../hooks/useEditMode";
-import { toast } from "react-hot-toast";
 import useValidActiveLayer from "../../hooks/useValidActiveLayer";
+import { toast } from "react-hot-toast";
+
+// Mutations de Directus
+import {
+  useCreateShape,
+  useUpdateShape,
+  useDeleteShape,
+} from "../../hooks/useShapes";
 
 export default function CanvasStage() {
+  const { id: workspaceId } = useParams();
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   const fileInputRef = useRef(null);
   const multiSelectRef = useRef(null);
-  const { isEditMode } = useEditMode();
 
-  // Estado general
+  const { isEditMode } = useEditMode();
+  const validActiveLayer = useValidActiveLayer();
+  const hasActiveLayer = !!validActiveLayer;
+
+  // Dimensiones viewport
   const [dims, setDims] = useState({ width: 0, height: 0 });
   const [autoEditTextId, setAutoEditTextId] = useState(null);
   const [markerModalShapeId, setMarkerModalShapeId] = useState(null);
 
-  // Store
+  // Store local
   const {
     zoom,
     pan,
@@ -48,65 +63,68 @@ export default function CanvasStage() {
     activeLayerId,
     tool,
     backgroundColor,
-    setSelectedShape,
-    addShape,
-    updateShape,
-    toggleGrid,
-    toggleLayersPanel,
-    saveToHistory,
+    setBackgroundImage,
     backgroundImage,
     canvasWidth,
     canvasHeight,
+    saveToHistory,
   } = useCanvasStore();
 
-  const validActiveLayer = useValidActiveLayer();
-  const hasActiveLayer = !!validActiveLayer;
-
-  // Selections & multi
   const selectedShapeId = useCanvasStore((s) => s.selectedShapeId);
   const selectedShapeIds = useCanvasStore((s) => s.selectedShapeIds);
+  const setSelectedShape = useCanvasStore((s) => s.setSelectedShape);
   const toggleSelection = useCanvasStore((s) => s.toggleSelection);
   const clearSelection = useCanvasStore((s) => s.clearSelection);
   const setMultipleSelection = useCanvasStore((s) => s.setMultipleSelection);
   const removeSelectedShapes = useCanvasStore((s) => s.removeSelectedShapes);
   const copyShape = useCanvasStore((s) => s.copyShape);
   const pasteShape = useCanvasStore((s) => s.pasteShape);
-  const removeShape = useCanvasStore((s) => s.removeShape);
-  const clipboardShape = useCanvasStore((s) => s.clipboardShape);
   const replaceShape = useCanvasStore((s) => s.replaceShape);
   const setActiveLayer = useCanvasStore((s) => s.setActiveLayer);
 
-  // Context menu hook
+  // Mutations Directus
+  const createShapeMut = useCreateShape();
+  const updateShapeMut = useUpdateShape();
+  const deleteShapeMut = useDeleteShape();
+
+  // Context menu
   const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
 
-  // Offset para centrar canvas
+  // Offset centrar canvas
   const offset = {
     x: (dims.width - canvasWidth) / 2,
     y: (dims.height - canvasHeight) / 2,
   };
-  window.__konvaOffset = offset;
   const [bgImg] = useImage(backgroundImage || "");
 
-  // Función utilitaria para obtener posición real del canvas
-  const getCanvasPosition = () => getCanvasPosUtil(stageRef, offset);
-
-  // Zoom & Pan con hook dedicado
+  // Zoom & Pan
   useZoomPan(stageRef, { zoom, setZoom, pan, setPan, tool });
 
-  // Imagen upload hook
+  // Imagen upload
   const { handleImageUpload, openImageInput } = useImageUpload({
     fileInputRef,
     CANVAS_WIDTH: canvasWidth,
     CANVAS_HEIGHT: canvasHeight,
     layers,
     activeLayerId,
-    addShape,
+    addShape: async (shape) => {
+      // 🚀 SOLO servidor - Sin update local
+      const result = await createShapeMut.mutateAsync({
+        ...shape,
+        layer_id: shape.layerId,
+        workspace_id: workspaceId,
+        data: shape.props,
+      });
+      return result?.data?.id; // Retornar el ID de la shape creada
+    },
     setSelectedShape,
     setTool: useCanvasStore.getState().setTool,
     saveToHistory,
+    getCanvasPosition: () => getCanvasPosUtil(stageRef, offset),
+    useCanvasStoreRef: useCanvasStore,
   });
 
-  // Atajos teclado hook
+  // Atajos
   useCanvasShortcuts({
     autoEditTextId,
     setAutoEditTextId,
@@ -115,13 +133,13 @@ export default function CanvasStage() {
     clearSelection,
     copyShape,
     pasteShape,
-    toggleGrid,
-    toggleLayersPanel,
+    toggleGrid: useCanvasStore.getState().toggleGrid,
+    toggleLayersPanel: useCanvasStore.getState().toggleLayersPanel,
     removeSelectedShapes,
     tool,
   });
 
-  // Drawing hook (dibujo de figuras)
+  // Drawing hook
   const {
     isDrawing,
     handleMouseDown: drawMouseDown,
@@ -133,16 +151,35 @@ export default function CanvasStage() {
     activeLayerId,
     strokeColor,
     fillColor,
-    addShape,
-    updateShape,
+    addShape: (shape) => {
+      // 🚀 SOLO servidor - Sin update local
+      createShapeMut.mutate({
+        ...shape,
+        layer_id: shape.layerId,
+        workspace_id: workspaceId,
+        data: shape.props,
+      });
+    },
+    updateShape: (id, props) => {
+      // 🚀 SOLO servidor - Sin update local
+      const shape = shapes.find((s) => s.id === id);
+      if (!shape) return;
+
+      updateShapeMut.mutate({
+        id,
+        data: {
+          data: { ...shape.props, ...props }, // Merge con props existentes
+        },
+      });
+    },
     setSelectedShape,
     saveToHistory,
     setAutoEditTextId,
-    getCanvasPosition,
+    getCanvasPosition: () => getCanvasPosUtil(stageRef, offset),
     useCanvasStoreRef: useCanvasStore,
   });
 
-  // Selección por área
+  // Selection box
   const {
     selectBox,
     isSelecting,
@@ -150,13 +187,13 @@ export default function CanvasStage() {
     handleMove: selectMove,
     handleEnd: selectEnd,
   } = useSelectionBox({
-    getCanvasPosition,
+    getCanvasPosition: () => getCanvasPosUtil(stageRef, offset),
     shapes,
     layers,
     setMultipleSelection,
   });
 
-  // MultiTransformer efecto (actualiza nodos seleccionados)
+  // MultiTransformer
   useEffect(() => {
     if (!stageRef.current || !multiSelectRef.current) return;
 
@@ -164,17 +201,14 @@ export default function CanvasStage() {
       const nodes = selectedShapeIds
         .map((id) => stageRef.current.findOne(`#${id}`))
         .filter(Boolean);
-
-      if (nodes.length > 1) {
-        multiSelectRef.current.nodes(nodes);
-        multiSelectRef.current.getLayer().batchDraw();
-      }
+      multiSelectRef.current.nodes(nodes);
+      multiSelectRef.current.getLayer().batchDraw();
     } else {
       multiSelectRef.current.nodes([]);
     }
   }, [selectedShapeIds]);
 
-  // Centrar y resize inicial
+  // Resize
   useEffect(() => {
     const measure = () => {
       if (!containerRef.current) return;
@@ -189,7 +223,7 @@ export default function CanvasStage() {
     return () => window.removeEventListener("resize", measure);
   }, [setPan, setZoom]);
 
-  // Prevenir scroll touch
+  // Prevent scroll touch
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -198,12 +232,16 @@ export default function CanvasStage() {
     return () => el.removeEventListener("touchmove", prevent);
   }, []);
 
-  // Abrir file input cuando tool == image
+  // Open image input - solo una vez por selección de herramienta
+  const prevTool = useRef(tool);
   useEffect(() => {
-    if (tool === "image") openImageInput();
+    if (tool === "image" && prevTool.current !== "image") {
+      openImageInput();
+    }
+    prevTool.current = tool;
   }, [tool, openImageInput]);
 
-  // Ocultar MarkerModal si shape se borra
+  // Close marker modal if shape removed
   useEffect(() => {
     if (
       markerModalShapeId &&
@@ -213,264 +251,90 @@ export default function CanvasStage() {
     }
   }, [shapes, markerModalShapeId]);
 
-  // Handlers combinados para el Stage (unifican select/draw)
+  // Stage mouse handlers
   const handleStageMouseDown = (e) => {
-    // Ocultar menú contextual
     if (contextMenu) hideContextMenu();
-
-    if (tool === "hand") return;
-
-    const SHAPE_CLASSES = [
-      "Arrow",
-      "Rect",
-      "Circle",
-      "Line",
-      "Text",
-      "Image",
-      "FreeDraw",
-      "Marker",
-      "Group",
-    ];
-    const clickedOnShape =
-      e.target.getClassName &&
-      (SHAPE_CLASSES.includes(e.target.getClassName()) ||
-        e.target.getParent()?.getClassName() === "Group");
-
-    // En modo visualización, solo permitir interacción con markers
-    if (!isEditMode) {
-      const isMarker =
-        e.target.getParent()?.getClassName() === "Group" &&
-        e.target.getParent()?.name() === "marker";
-      if (!isMarker) return;
-    }
-
-    // Solo retornar temprano si es herramienta select Y se hizo clic en una figura
-    if (tool === "select" && clickedOnShape) {
-      return;
-    }
-
-    // Click en fondo
+    if (!isEditMode && tool !== "hand") return;
+    const isShape =
+      e.target.getClassName && e.target.getClassName() !== "Group";
+    if (tool === "select" && isShape) return;
     const isBackground =
-      e.target === e.target.getStage() ||
-      (e.target.id && e.target.id() === "background-rect");
-
-    // Evita dibujo si no hay capa activa válida o no está en modo edición
-    if (
-      (!hasActiveLayer || !isEditMode) &&
-      tool !== "select" &&
-      tool !== "hand"
-    ) {
-      if (!isEditMode) return; // En modo visualización no hacer nada
-
-      toast("Selecciona una capa antes de continuar", {
-        icon: "⚠️",
-        duration: 3500,
-      });
-      return;
-    }
-
-    if (tool === "select" && isBackground && isEditMode) {
-      if (!e.evt.ctrlKey && !e.evt.metaKey) {
-        clearSelection();
-        selectStart();
-      }
+      e.target === e.target.getStage() || e.target.id() === "background-rect";
+    if (tool === "select" && isBackground) {
+      clearSelection();
+      selectStart();
     } else if (tool !== "select" && isEditMode) {
-      // Permitir dibujo solo en modo edición
       drawMouseDown(e);
     }
   };
-
   const handleStageMouseMove = (e) => {
-    if (!isEditMode) return; // No permitir interacciones en modo visualización
-    if (tool === "hand") return;
-    if (tool === "select") {
-      selectMove();
-    } else if (isDrawing) {
-      drawMouseMove(e, shapes);
-    }
+    if (!isEditMode || tool === "hand") return;
+    if (tool === "select") selectMove();
+    else if (isDrawing) drawMouseMove(e, shapes);
   };
-
   const handleStageMouseUp = () => {
-    if (!isEditMode) return; // No permitir interacciones en modo visualización
-    if (tool === "hand") return;
-    if (tool === "select") {
-      selectEnd();
-    }
-    if (isDrawing) {
-      drawMouseUp();
-    }
+    if (!isEditMode || tool === "hand") return;
+    if (tool === "select") selectEnd();
+    if (isDrawing) drawMouseUp();
   };
 
+  // Transform end
   const handleTransformEnd = (e) => {
-    // Selección múltiple (MultiTransformer)
-    if (selectedShapeIds.length > 1) {
-      selectedShapeIds.forEach((id) => {
-        const node = stageRef.current.findOne(`#${id}`);
-        if (!node) return;
-        const shape = shapes.find((s) => s.id === id);
-        if (!shape) return;
-
-        // Busca si la capa está bloqueada (isLocked)
-        const layer = layers.find((l) => l.id === shape.layerId);
-        const isLocked = layer && layer.locked;
-        if (isLocked) return;
-
-        const scaleX = node.scaleX();
-        const scaleY = node.scaleY();
-        const rotation = node.rotation();
-        const x = node.x();
-        const y = node.y();
-
-        switch (shape.type) {
-          case "arrow":
-            updateShape(id, {
-              x: x,
-              y: y,
-              points: shape.props.points.map((point, idx) =>
-                idx % 2 === 0 ? point * scaleX : point * scaleY
-              ),
-              rotation: rotation,
-            });
-            break;
-          case "line":
-            updateShape(id, {
-              x: x,
-              y: y,
-              points: shape.props.points.map((point, idx) =>
-                idx % 2 === 0 ? point * scaleX : point * scaleY
-              ),
-              rotation: rotation,
-            });
-            break;
-          case "freeDraw":
-            updateShape(id, {
-              x: x,
-              y: y,
-              points: shape.props.points.map((point, idx) =>
-                idx % 2 === 0 ? point * scaleX : point * scaleY
-              ),
-              rotation: rotation,
-            });
-            break;
-          case "rect":
-          case "image":
-          case "marker":
-            updateShape(id, {
-              x: x,
-              y: y,
-              width: Math.max(5, node.width() * scaleX),
-              height: Math.max(5, node.height() * scaleY),
-              rotation: rotation,
-            });
-            break;
-          case "text":
-            updateShape(id, {
-              x: x,
-              y: y,
-              width: Math.max(50, node.width() * scaleX),
-              height: Math.max(20, node.height() * scaleY),
-              fontSize: Math.max(8, (shape.props.fontSize || 16) * scaleX),
-              rotation: rotation,
-            });
-            break;
-          case "circle":
-            updateShape(id, {
-              x: x,
-              y: y,
-              radius: Math.max(5, shape.props.radius * scaleX),
-              rotation: rotation,
-            });
-            break;
-          default:
-            break;
-        }
-
-        // Reset transform para cada nodo
-        node.scaleX(1);
-        node.scaleY(1);
-        node.rotation(0);
-      });
-      // Guarda historial SOLO UNA VEZ después de todos los updates
-      saveToHistory();
-      return;
-    }
-
-    // Lógica original para transformación de una sola shape
+    const id = e.target.id();
     const node = e.target;
-    if (!node || typeof node.id !== "function") return;
-    const id = node.id();
     const shape = shapes.find((s) => s.id === id);
     if (!shape) return;
-
     const layer = layers.find((l) => l.id === shape.layerId);
-    const isLocked = layer && layer.locked;
-    if (isLocked) return;
+    if (layer?.locked) return;
 
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
     const rotation = node.rotation();
     const x = node.x();
     const y = node.y();
+    let propsUpdate = {};
 
     switch (shape.type) {
-      case "arrow":
-        updateShape(id, {
-          x: x,
-          y: y,
-          points: shape.props.points.map((point, idx) =>
-            idx % 2 === 0 ? point * scaleX : point * scaleY
-          ),
-          rotation: rotation,
-        });
-        break;
-      case "line":
-        updateShape(id, {
-          x: x,
-          y: y,
-          points: shape.props.points.map((point, idx) =>
-            idx % 2 === 0 ? point * scaleX : point * scaleY
-          ),
-          rotation: rotation,
-        });
-        break;
-      case "freeDraw":
-        updateShape(id, {
-          x: x,
-          y: y,
-          points: shape.props.points.map((point, idx) =>
-            idx % 2 === 0 ? point * scaleX : point * scaleY
-          ),
-          rotation: rotation,
-        });
-        break;
       case "rect":
       case "image":
       case "marker":
-        updateShape(id, {
-          x: x,
-          y: y,
-          width: Math.max(5, node.width() * scaleX),
-          height: Math.max(5, node.height() * scaleY),
-          rotation: rotation,
-        });
-        break;
-      case "text":
-        updateShape(id, {
-          x: x,
-          y: y,
-          width: Math.max(50, node.width() * scaleX),
-          height: Math.max(20, node.height() * scaleY),
-          fontSize: Math.max(8, (shape.props.fontSize || 16) * scaleX),
-          rotation: rotation,
-        });
+        propsUpdate = {
+          x,
+          y,
+          width: node.width() * scaleX,
+          height: node.height() * scaleY,
+          rotation,
+        };
         break;
       case "circle":
-        updateShape(id, {
-          x: x,
-          y: y,
-          radius: Math.max(5, shape.props.radius * scaleX),
-          rotation: rotation,
-        });
+        propsUpdate = {
+          x,
+          y,
+          radius: shape.props.radius * scaleX,
+          rotation,
+        };
+        break;
+      case "line":
+      case "freeDraw":
+      case "arrow":
+        propsUpdate = {
+          x,
+          y,
+          points: shape.props.points.map((pt, idx) =>
+            idx % 2 === 0 ? pt * scaleX : pt * scaleY
+          ),
+          rotation,
+        };
+        break;
+      case "text":
+        propsUpdate = {
+          x,
+          y,
+          width: node.width() * scaleX,
+          height: node.height() * scaleY,
+          fontSize: (shape.props.fontSize || 16) * scaleX,
+          rotation,
+        };
         break;
       default:
         break;
@@ -480,85 +344,68 @@ export default function CanvasStage() {
     node.scaleY(1);
     node.rotation(0);
 
+    // 🚀 SOLO servidor - Sin update local
+    // Enviar los props dentro del campo 'data' de Directus
     saveToHistory();
+    updateShapeMut.mutate({
+      id,
+      data: {
+        data: { ...shape.props, ...propsUpdate }, // Merge con props existentes
+      },
+    });
   };
 
+  // Drag end
   const handleShapeDragEnd = (e) => {
-    const node = e.target;
-    const id = node.id();
+    const id = e.target.id();
+    const x = e.target.x();
+    const y = e.target.y();
+
     const shape = shapes.find((s) => s.id === id);
     if (!shape) return;
-    const newX = node.x();
-    const newY = node.y();
-    updateShape(id, { x: newX, y: newY });
+
+    // 🚀 SOLO servidor - Sin update local
+    // Enviar los props dentro del campo 'data' de Directus
     saveToHistory();
+    updateShapeMut.mutate({
+      id,
+      data: {
+        data: { ...shape.props, x, y }, // Merge con props existentes
+      },
+    });
   };
 
+  // Shape double click
   const handleShapeDoubleClick = (id) => {
-    const shape = shapes.find((s) => s.id === id);
-    if (shape?.type === "marker") {
-      setMarkerModalShapeId(id);
-    } else {
-      setSelectedShape(id);
-    }
+    setSelectedShape(id);
   };
 
-  const handleStageDoubleClick = (e) => {
-    // Solo en modo edición permitir cambio de herramienta
-    if (tool === "hand") return;
-    if (!isEditMode) return;
-
-    // Solo cambiar a select si no se hizo doble clic en una figura
-    const SHAPE_CLASSES = [
-      "Arrow",
-      "Rect",
-      "Circle",
-      "Line",
-      "Text",
-      "Image",
-      "FreeDraw",
-      "Marker",
-      "Group",
-    ];
-    const clickedOnShape =
-      e.target.getClassName &&
-      (SHAPE_CLASSES.includes(e.target.getClassName()) ||
-        e.target.getParent()?.getClassName() === "Group");
-
-    if (!clickedOnShape) {
-      const { setTool } = useCanvasStore.getState();
-      setTool("select");
-    }
+  // Context menu actions
+  const deleteViaMenu = (id) => {
+    // 🚀 SOLO servidor - Sin update local
+    deleteShapeMut.mutate(id);
   };
 
-  // Acciones del menú contextual
-  const bringShapeToFront = (id) =>
-    useCanvasStore.getState().bringShapeToFront(id);
-  const sendShapeToBack = (id) => useCanvasStore.getState().sendShapeToBack(id);
-  const bringShapeForward = (id) =>
-    useCanvasStore.getState().bringShapeForward(id);
-  const sendShapeBackward = (id) =>
-    useCanvasStore.getState().sendShapeBackward(id);
+  const bringFront = (id) => useCanvasStore.getState().bringShapeToFront(id);
+  const sendBack = (id) => useCanvasStore.getState().sendShapeToBack(id);
+  const bringForward = (id) => useCanvasStore.getState().bringShapeForward(id);
+  const sendBackward = (id) => useCanvasStore.getState().sendShapeBackward(id);
 
   return (
     <div
       ref={containerRef}
-      className="flex-1 bg-slate-900 overflow-hidden p-0 m-0"
+      className="flex-1 bg-slate-900 relative overflow-hidden"
     >
-      {/* Input file para cargar imágenes */}
       <input
         type="file"
-        accept="image/*"
+        accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.tiff,application/pdf"
         ref={fileInputRef}
-        style={{ display: "none", position: "absolute", left: "-9999px" }}
+        style={{ display: "none" }}
         onChange={handleImageUpload}
       />
 
       <Stage
-        ref={(ref) => {
-          stageRef.current = ref;
-          window.__konvaStageRef = ref;
-        }}
+        ref={(r) => (stageRef.current = r)}
         width={dims.width}
         height={dims.height}
         scaleX={zoom}
@@ -566,42 +413,29 @@ export default function CanvasStage() {
         x={pan.x}
         y={pan.y}
         draggable={tool === "hand"}
-        onDragEnd={
-          tool === "hand"
-            ? (e) => setPan({ x: e.target.x(), y: e.target.y() })
-            : undefined
-        }
-        style={{
-          cursor:
-            tool === "hand"
-              ? "grab"
-              : tool === "select"
-              ? isSelecting
-                ? "crosshair"
-                : "default"
-              : "crosshair",
+        onDragEnd={(e) => {
+          if (tool === "hand") setPan({ x: e.target.x(), y: e.target.y() });
         }}
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
         onMouseUp={handleStageMouseUp}
-        onDblClick={handleStageDoubleClick}
-        onTouchStart={handleStageMouseDown}
-        onTouchMove={handleStageMouseMove}
-        onTouchEnd={handleStageMouseUp}
+        onDblClick={(e) => {
+          const id = e.target.id();
+          if (id) handleShapeDoubleClick(id);
+        }}
+        style={{ cursor: tool === "hand" ? "grab" : "crosshair" }}
       >
         <Layer>
           <Group x={offset.x} y={offset.y}>
-            {/* Fondo */}
             <Rect
               id="background-rect"
               x={0}
               y={0}
-              fill={backgroundColor}
               width={canvasWidth}
               height={canvasHeight}
+              fill={backgroundColor}
               listening={false}
             />
-
             {backgroundImage && bgImg && (
               <KonvaImage
                 image={bgImg}
@@ -612,8 +446,6 @@ export default function CanvasStage() {
                 listening={false}
               />
             )}
-
-            {/* Grid */}
             {gridEnabled && (
               <Grid
                 width={canvasWidth}
@@ -621,8 +453,6 @@ export default function CanvasStage() {
                 cellSize={GRID_CELL_SIZE}
               />
             )}
-
-            {/* Capas y shapes */}
             <CanvasLayers
               layers={layers}
               shapes={shapes}
@@ -632,45 +462,46 @@ export default function CanvasStage() {
               setSelectedShape={setSelectedShape}
               handleTransformEnd={handleTransformEnd}
               handleShapeDragEnd={handleShapeDragEnd}
-              handleShapeDoubleClick={() =>
-                tool === "select" ? handleShapeDoubleClick : undefined
-              }
+              handleShapeDoubleClick={handleShapeDoubleClick}
               setContextMenu={showContextMenu}
               autoEditTextId={autoEditTextId}
-              updateShape={updateShape}
+              updateShape={(id, props) => {
+                // 🚀 SOLO servidor - Sin update local
+                const shape = shapes.find((s) => s.id === id);
+                if (!shape) return;
+
+                updateShapeMut.mutate({
+                  id,
+                  data: {
+                    data: { ...shape.props, ...props }, // Merge con props existentes
+                  },
+                });
+              }}
               setActiveLayer={setActiveLayer}
             />
-
-            {/* Rectángulo de selección */}
             <SelectBox selectBox={selectBox} />
           </Group>
-
-          {/* Transformer múltiple */}
           <MultiTransformer
             transformerRef={multiSelectRef}
-            enabled={
-              isEditMode && selectedShapeIds.length > 1 && tool !== "hand"
-            }
+            enabled={isEditMode && selectedShapeIds.length > 1}
           />
         </Layer>
       </Stage>
 
-      {/* Menú contextual */}
       <ContextMenu
         contextMenu={contextMenu}
-        onBringToFront={bringShapeToFront}
-        onSendToBack={sendShapeToBack}
-        onBringForward={bringShapeForward}
-        onSendBackward={sendShapeBackward}
-        onClose={hideContextMenu}
+        onBringToFront={bringFront}
+        onSendToBack={sendBack}
+        onBringForward={bringForward}
+        onSendBackward={sendBackward}
         onCopy={copyShape}
         onPaste={pasteShape}
-        onDelete={removeShape}
-        clipboardShape={clipboardShape}
+        onDelete={deleteViaMenu}
         onReplace={replaceShape}
+        clipboardShape={useCanvasStore.getState().clipboardShape}
+        onClose={hideContextMenu}
       />
 
-      {/* Modal de Marker */}
       {markerModalShapeId && (
         <MarkerModal
           shapeId={markerModalShapeId}

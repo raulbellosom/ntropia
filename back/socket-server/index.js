@@ -1,45 +1,72 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 
-const app = express();
-const server = http.createServer(app);
+// Variables de entorno
+const PORT = process.env.SOCKET_SERVER_PORT || 4010;
+const FRONTEND_URL = process.env.FRONTEND_URL || "*";
 
+// Inicialización de Express
+const app = express();
+app.use(express.json());
+
+// Creación del servidor HTTP y Socket.IO
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "*",
+    origin: FRONTEND_URL,
     methods: ["GET", "POST"],
   },
 });
 
+// Manejo de conexiones de clientes
 io.on("connection", (socket) => {
-  console.log("🔌 Nuevo cliente conectado:", socket.id);
+  console.log(`🔌 Cliente conectado: ${socket.id}`);
 
+  // Sala de notificaciones por email (invitaciones)
   socket.on("join", (email) => {
-    console.log(`📨 Usuario ${email} se unió a su sala`);
     socket.join(email);
+    console.log(`📨 ${socket.id} se unió a sala de email: ${email}`);
   });
 
-  socket.on("disconnect", () => {
-    console.log("❌ Cliente desconectado:", socket.id);
+  // Sala de colaboración por workspace
+  socket.on("join-workspace", (workspaceId) => {
+    const room = `workspace:${workspaceId}`;
+    socket.join(room);
+    console.log(`📨 ${socket.id} se unió a sala de workspace: ${room}`);
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.log(`❌ Cliente desconectado: ${socket.id} (${reason})`);
   });
 });
 
-// Endpoint para emitir desde Directus
-app.use(express.json());
+// Endpoint para emitir eventos
 app.post("/emit", (req, res) => {
-  const { to, type, data } = req.body;
-  if (!to || !type || !data) {
-    return res.status(400).json({ error: "Faltan parámetros" });
+  const { to, workspaceId, type, data } = req.body;
+
+  // Definir la sala de emisión
+  let room;
+  if (to) {
+    room = to; // Para notificaciones por email
+  } else if (workspaceId) {
+    room = `workspace:${workspaceId}`; // Para eventos de canvas
+  } else {
+    return res
+      .status(400)
+      .json({ error: 'Falta parámetro "to" o "workspaceId"' });
   }
 
-  io.to(to).emit(type, data);
-  console.log(`📣 Emitiendo evento '${type}' a ${to}`);
-  res.json({ success: true });
+  // Emitir evento a la sala correspondiente
+  io.to(room).emit(type, data);
+  console.log(`📣 Evento "${type}" emitido a sala: ${room}`, data);
+  return res.status(200).json({ success: true });
 });
 
-const PORT = process.env.SOCKET_SERVER_PORT || 4010;
-
+// Arranque del servidor
 server.listen(PORT, () => {
   console.log(`🚀 Socket server escuchando en puerto ${PORT}`);
 });

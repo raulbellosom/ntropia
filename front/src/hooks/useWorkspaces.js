@@ -45,8 +45,9 @@ export function useUpdateWorkspace() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }) => ws.updateWorkspace(id, data),
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace", id] });
     },
   });
 }

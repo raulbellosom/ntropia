@@ -17,6 +17,10 @@
  * - saveToHistory: callback para guardar historial (opcional)
  */
 
+import { useUploadFile } from "./useFiles";
+import { pdfToImageAndUpload } from "../utils/pdfToImage";
+import { useCallback } from "react";
+
 export default function useImageUpload({
   fileInputRef,
   CANVAS_WIDTH,
@@ -28,33 +32,67 @@ export default function useImageUpload({
   setTool, // opcional
   saveToHistory, // opcional
 }) {
-  // Abre el selector de archivos
-  const openImageInput = () => {
+  const uploadFile = useUploadFile();
+
+  // Abre el selector de archivos - MEMOIZADO
+  const openImageInput = useCallback(() => {
     if (fileInputRef.current) {
       fileInputRef.current.value = ""; // permite volver a seleccionar la misma imagen
       fileInputRef.current.click();
     }
-  };
+  }, [fileInputRef]);
 
-  // Handler para cuando el usuario selecciona una imagen
-  const handleImageUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const src = reader.result;
-      const img = new window.Image();
-      img.onload = () => {
+  // Handler para cuando el usuario selecciona una imagen - MEMOIZADO
+  const handleImageUpload = useCallback(
+    async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      try {
+        let fileId, originalWidth, originalHeight;
+
+        // Manejar PDFs de forma diferente
+        if (file.type === "application/pdf") {
+          const result = await pdfToImageAndUpload(file);
+          fileId = result.fileId;
+          originalWidth = result.width;
+          originalHeight = result.height;
+        } else {
+          // Manejar imágenes normales
+          const uploadResult = await uploadFile.mutateAsync({
+            file,
+            fileName: file.name,
+          });
+          fileId = uploadResult.data.data.id;
+
+          // Obtener dimensiones de la imagen
+          const reader = new FileReader();
+          const dimensions = await new Promise((resolve) => {
+            reader.onload = () => {
+              const img = new window.Image();
+              img.onload = () =>
+                resolve({ width: img.width, height: img.height });
+              img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+          });
+          originalWidth = dimensions.width;
+          originalHeight = dimensions.height;
+        }
+
+        // Calcular dimensiones ajustadas
         const maxW = CANVAS_WIDTH;
         const maxH = CANVAS_HEIGHT;
-        let w = img.width;
-        let h = img.height;
+        let w = originalWidth;
+        let h = originalHeight;
         let scale = 1;
+
         if (w > maxW || h > maxH) {
           scale = Math.min(maxW / w, maxH / h);
           w = w * scale;
           h = h * scale;
         }
+
         // Centrar imagen en canvas visible
         const pos = {
           x: CANVAS_WIDTH / 2 - w / 2,
@@ -64,25 +102,42 @@ export default function useImageUpload({
         const layer = layers.find((l) => l.id === activeLayerId);
         if (layer && layer.locked) return;
 
-        const id = addShape({
+        // Crear shape con el ID de Directus, NO con base64
+        const id = await addShape({
           layerId: activeLayerId,
           type: "image",
           props: {
             x: pos.x,
             y: pos.y,
-            src,
+            src: fileId, // ✅ Solo guardamos el ID
             width: w,
             height: h,
           },
         });
-        setTimeout(() => setSelectedShape(id), 0);
+
+        // Seleccionar la shape después de que se cree en el servidor
+        if (id) {
+          setTimeout(() => setSelectedShape(id), 100);
+        }
         if (setTool) setTool("select");
-      };
-      img.src = src;
-    };
-    reader.readAsDataURL(file);
-    if (saveToHistory) saveToHistory();
-  };
+        if (saveToHistory) saveToHistory();
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        alert("Error al subir la imagen. Inténtalo de nuevo.");
+      }
+    },
+    [
+      uploadFile,
+      CANVAS_WIDTH,
+      CANVAS_HEIGHT,
+      layers,
+      activeLayerId,
+      addShape,
+      setSelectedShape,
+      setTool,
+      saveToHistory,
+    ]
+  );
 
   return {
     handleImageUpload,

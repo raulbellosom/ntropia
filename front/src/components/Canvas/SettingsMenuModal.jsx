@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import ModalWrapper from "../common/ModalWrapper";
 import { useCanvasStore } from "../../store/useCanvasStore";
+import { useUpdateWorkspace } from "../../hooks/useWorkspaces";
+import { useUploadFile } from "../../hooks/useFiles";
+import { generateId } from "../../utils/id";
 import {
   Image as ImageIcon,
   Download,
@@ -12,8 +17,6 @@ import {
   FileImage,
   FileText,
   X,
-  Save,
-  Undo2,
   Facebook,
   Instagram,
   Twitter,
@@ -26,7 +29,12 @@ import { pdfToImage } from "../../utils/pdfToImage";
 import { useEditMode } from "../../hooks/useEditMode";
 
 export default function SettingsMenuModal({ isOpen, onClose }) {
+  const { id: workspaceId } = useParams();
   const { isEditMode } = useEditMode();
+
+  // Mutations para tiempo real
+  const updateWorkspace = useUpdateWorkspace();
+  const uploadFile = useUploadFile();
 
   // Crear TABS dinámicamente basado en el modo
   const TABS = [
@@ -68,31 +76,118 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
     backgroundImage,
   } = useCanvasStore();
 
-  // --- Estado temporal para edición (solo necesario si hay tab canvas) ---
-  const [draft, setDraft] = useState({
-    width: canvasWidth,
-    height: canvasHeight,
-    backgroundColor,
-    backgroundImage,
-  });
+  // 🚀 Funciones de actualización en tiempo real
+  const handleCanvasSizeChange = async (width, height) => {
+    if (!isEditMode) return;
 
-  useEffect(() => {
-    if (isOpen && isEditMode) {
-      setDraft({
-        width: canvasWidth,
-        height: canvasHeight,
-        backgroundColor,
-        backgroundImage,
+    const newWidth = Math.max(100, parseInt(width));
+    const newHeight = Math.max(100, parseInt(height));
+
+    // Actualizar localmente de inmediato
+    setCanvasSize({ width: newWidth, height: newHeight });
+
+    // Enviar al servidor
+    try {
+      await updateWorkspace.mutateAsync({
+        id: workspaceId,
+        data: {
+          canvasWidth: newWidth,
+          canvasHeight: newHeight,
+        },
       });
+    } catch (error) {
+      console.error("Error updating canvas size:", error);
     }
-  }, [
-    isOpen,
-    canvasWidth,
-    canvasHeight,
-    backgroundColor,
-    backgroundImage,
-    isEditMode,
-  ]);
+  };
+
+  const handleBackgroundColorChange = async (color) => {
+    if (!isEditMode) return;
+
+    // Actualizar localmente de inmediato
+    setBackgroundColor(color);
+
+    // Enviar al servidor
+    try {
+      await updateWorkspace.mutateAsync({
+        id: workspaceId,
+        data: { backgroundColor: color },
+      });
+    } catch (error) {
+      console.error("Error updating background color:", error);
+    }
+  };
+
+  const handleBackgroundImageChange = async (imageFile) => {
+    if (!isEditMode) return;
+
+    try {
+      // Validar que sea una imagen
+      if (!imageFile.type.startsWith("image/")) {
+        toast.error("Por favor selecciona un archivo de imagen válido");
+        return;
+      }
+
+      // Obtener dimensiones de la imagen
+      const imageDimensions = await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        };
+        img.src = URL.createObjectURL(imageFile);
+      });
+
+      // Subir archivo al servidor
+      const uuid = generateId();
+      const ext = imageFile.type.split("/")[1];
+      const uploadResult = await uploadFile.mutateAsync({
+        file: imageFile,
+        fileName: `${uuid}.${ext}`,
+      });
+
+      const fileId = uploadResult.data.id || uploadResult.data.data?.id;
+
+      // Actualizar workspace con nueva imagen Y dimensiones
+      await updateWorkspace.mutateAsync({
+        id: workspaceId,
+        data: {
+          background: fileId,
+          canvasWidth: imageDimensions.width,
+          canvasHeight: imageDimensions.height,
+        },
+      });
+
+      // Actualizar canvas size localmente también
+      setCanvasSize({
+        width: imageDimensions.width,
+        height: imageDimensions.height,
+      });
+
+      toast.success("Imagen de fondo actualizada");
+      // La imagen se cargará automáticamente por el sistema de hidratación
+    } catch (error) {
+      console.error("Error uploading background image:", error);
+      toast.error("Error al subir la imagen de fondo");
+    }
+  };
+
+  const handleClearBackgroundImage = async () => {
+    if (!isEditMode) return;
+
+    // Actualizar localmente de inmediato
+    clearBackgroundImage();
+
+    // Enviar al servidor
+    try {
+      await updateWorkspace.mutateAsync({
+        id: workspaceId,
+        data: { background: null },
+      });
+      toast.success("Imagen de fondo eliminada");
+    } catch (error) {
+      console.error("Error clearing background image:", error);
+      toast.error("Error al eliminar la imagen de fondo");
+    }
+  };
 
   // Export settings
   const stageRef = window.__konvaStageRef;
@@ -145,73 +240,62 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
     link.click();
   };
 
-  // Guardar los cambios generales (solo disponible en modo edición)
-  function handleSaveAll() {
+  // 🚀 Handler para cambio de imagen en tiempo real
+  function handleBackgroundImageInput(e) {
     if (!isEditMode) return;
 
-    setCanvasSize({
-      width: Math.max(100, parseInt(draft.width)),
-      height: Math.max(100, parseInt(draft.height)),
-    });
-    setBackgroundColor(draft.backgroundColor);
-    if (draft.backgroundImage !== backgroundImage) {
-      setBackgroundImage(draft.backgroundImage);
-    }
-    onClose();
-  }
+    const file = e.target.files[0];
+    if (!file) return;
 
-  // Deshacer los cambios locales (solo disponible en modo edición)
-  function handleDiscard() {
-    if (!isEditMode) {
-      onClose();
+    // Validar que sea una imagen
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor selecciona un archivo de imagen válido");
       return;
     }
 
-    setDraft({
-      width: canvasWidth,
-      height: canvasHeight,
-      backgroundColor,
-      backgroundImage,
-    });
-    onClose();
+    handleBackgroundImageChange(file);
+
+    // Limpiar el input para permitir seleccionar el mismo archivo otra vez
+    e.target.value = "";
   }
 
-  function handleBackgroundImageChange(e) {
+  // 🚀 Handler para cambio de PDF en tiempo real
+  async function handleBackgroundPdfInput(e) {
     if (!isEditMode) return;
 
     const file = e.target.files[0];
     if (!file) return;
 
-    // Generar dataURL para que sí pase la condición de subida en handleSaveAll
-    const reader = new FileReader();
-    reader.onload = function (ev) {
-      const dataUrl = ev.target.result;
-      const img = new window.Image();
-      img.src = dataUrl;
-      img.onload = () => {
-        setDraft((d) => ({
-          ...d,
-          width: Math.round(img.width),
-          height: Math.round(img.height),
-          backgroundImage: dataUrl, // <-- Aquí guardamos el dataURL
-        }));
-      };
-    };
-    reader.readAsDataURL(file);
-  }
+    // Validar que sea un PDF
+    if (file.type !== "application/pdf") {
+      toast.error("Por favor selecciona un archivo PDF válido");
+      return;
+    }
 
-  async function handleBackgroundPdfChange(e) {
-    if (!isEditMode) return;
+    try {
+      toast.loading("Procesando PDF...", { id: "pdf-processing" });
 
-    const file = e.target.files[0];
-    if (!file) return;
-    const { dataUrl, width, height } = await pdfToImage(file, 2);
-    setDraft((d) => ({
-      ...d,
-      width: Math.round(width),
-      height: Math.round(height),
-      backgroundImage: dataUrl,
-    }));
+      const { dataUrl, width, height } = await pdfToImage(file, 2);
+
+      // Actualizar tamaño del canvas
+      await handleCanvasSizeChange(Math.round(width), Math.round(height));
+
+      // Convertir dataURL a blob y subir
+      const blob = await fetch(dataUrl).then((r) => r.blob());
+      await handleBackgroundImageChange(blob);
+
+      toast.success("PDF convertido y aplicado como fondo", {
+        id: "pdf-processing",
+      });
+    } catch (error) {
+      console.error("Error processing PDF:", error);
+      toast.error(`Error al procesar PDF: ${error.message}`, {
+        id: "pdf-processing",
+      });
+    }
+
+    // Limpiar el input para permitir seleccionar el mismo archivo otra vez
+    e.target.value = "";
   }
 
   return (
@@ -253,13 +337,7 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
         <section className="flex-1 pl-0 md:pl-6 overflow-y-auto relative">
           {/* Tab Canvas - Solo en modo edición */}
           {tab === "canvas" && isEditMode && (
-            <form
-              className="flex flex-col gap-y-8 md:gap-y-6 h-full"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSaveAll();
-              }}
-            >
+            <div className="flex flex-col gap-y-8 md:gap-y-6 h-full">
               {/* Canvas Size */}
               <div>
                 <h3 className="font-bold md:text-lg mb-2 flex items-center gap-2">
@@ -271,10 +349,10 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                     <input
                       type="number"
                       min={100}
-                      max={6000}
+                      max={100000}
                       step={1}
                       pattern="\d*"
-                      value={draft.width}
+                      value={canvasWidth}
                       inputMode="numeric"
                       onKeyDown={(e) => {
                         // Evita punto, coma y letras
@@ -282,9 +360,29 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                           e.preventDefault();
                       }}
                       onChange={(e) => {
-                        // Acepta solo enteros, elimina cualquier caracter no numérico
+                        // Solo actualizar el estado local sin validar aquí
                         const val = e.target.value.replace(/[^\d]/g, "");
-                        setDraft((d) => ({ ...d, width: val }));
+                        setCanvasSize({
+                          width: val === "" ? 0 : parseInt(val),
+                          height: canvasHeight,
+                        });
+                      }}
+                      onBlur={(e) => {
+                        // Validar y corregir en onBlur
+                        const val = e.target.value.replace(/[^\d]/g, "");
+                        const numVal = val === "" ? 100 : parseInt(val);
+                        const finalWidth = Math.max(
+                          100,
+                          Math.min(100000, numVal)
+                        );
+
+                        if (numVal < 100) {
+                          toast.error("El ancho mínimo es 100px");
+                        } else if (numVal > 100000) {
+                          toast.error("El ancho máximo es 100,000px");
+                        }
+
+                        handleCanvasSizeChange(finalWidth, canvasHeight);
                       }}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-base text-center font-medium shadow-sm focus:ring-2 focus:ring-blue-400"
                     />
@@ -294,15 +392,35 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                     <input
                       type="number"
                       min={100}
-                      max={6000}
+                      max={100000}
                       step={1}
                       pattern="\d*"
-                      value={draft.height}
+                      value={canvasHeight}
                       inputMode="numeric"
                       onChange={(e) => {
-                        // Acepta solo enteros, elimina cualquier caracter no numérico
+                        // Solo actualizar el estado local sin validar aquí
                         const val = e.target.value.replace(/[^\d]/g, "");
-                        setDraft((d) => ({ ...d, height: val }));
+                        setCanvasSize({
+                          width: canvasWidth,
+                          height: val === "" ? 0 : parseInt(val),
+                        });
+                      }}
+                      onBlur={(e) => {
+                        // Validar y corregir en onBlur
+                        const val = e.target.value.replace(/[^\d]/g, "");
+                        const numVal = val === "" ? 100 : parseInt(val);
+                        const finalHeight = Math.max(
+                          100,
+                          Math.min(100000, numVal)
+                        );
+
+                        if (numVal < 100) {
+                          toast.error("La altura mínima es 100px");
+                        } else if (numVal > 100000) {
+                          toast.error("La altura máxima es 100,000px");
+                        }
+
+                        handleCanvasSizeChange(canvasWidth, finalHeight);
                       }}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-base text-center font-medium shadow-sm focus:ring-2 focus:ring-blue-400"
                     />
@@ -319,19 +437,15 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <IconColorPicker
                     icon={Droplet}
-                    color={draft.backgroundColor}
-                    onChange={(color) =>
-                      setDraft((d) => ({ ...d, backgroundColor: color }))
-                    }
+                    color={backgroundColor}
+                    onChange={handleBackgroundColorChange}
                     label="Color de fondo"
                     size={32}
                   />
                   <button
                     type="button"
                     className="inline-flex items-center px-3 py-1 rounded bg-blue-50 text-blue-700 text-xs font-medium ml-2 hover:bg-blue-100 border border-blue-300 transition"
-                    onClick={() =>
-                      setDraft((d) => ({ ...d, backgroundColor: "#FFFFFF" }))
-                    }
+                    onClick={() => handleBackgroundColorChange("#FFFFFF")}
                   >
                     <RefreshCw size={16} className="mr-1" />
                     Restablecer
@@ -354,22 +468,20 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={handleBackgroundImageChange}
+                      onChange={handleBackgroundImageInput}
                     />
                   </label>
-                  {draft.backgroundImage && (
+                  {backgroundImage && (
                     <div className="flex items-center gap-1 mt-2 sm:mt-0 flex-nowrap text-nowrap w-full">
                       <img
-                        src={draft.backgroundImage}
+                        src={backgroundImage}
                         alt="Fondo"
                         className="h-9 w-9 object-cover rounded"
                       />
                       <button
                         type="button"
                         className="px-2 py-1 text-xs flex gap-2 h-9 items-center rounded bg-red-100 hover:bg-red-200 transition"
-                        onClick={() =>
-                          setDraft((d) => ({ ...d, backgroundImage: null }))
-                        }
+                        onClick={handleClearBackgroundImage}
                       >
                         <X size={20} /> Quitar imagen
                       </button>
@@ -390,7 +502,7 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                     type="file"
                     accept="application/pdf"
                     className="hidden"
-                    onChange={handleBackgroundPdfChange}
+                    onChange={handleBackgroundPdfInput}
                   />
                 </label>
               </div>
@@ -405,24 +517,7 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
                   <RefreshCw size={16} /> Reiniciar Vista del Canvas
                 </button>
               </div>
-
-              {/* Footer buttons */}
-              <div className="flex sm:flex-row gap-3 justify-end items-center mt-2 pt-2 border-t">
-                <button
-                  type="button"
-                  className="flex items-center gap-2 px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium transition w-full sm:w-auto"
-                  onClick={handleDiscard}
-                >
-                  <Undo2 size={18} /> Descartar
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center text-center gap-2 px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow w-full sm:w-auto"
-                >
-                  <Save size={18} /> Guardar
-                </button>
-              </div>
-            </form>
+            </div>
           )}
 
           {tab === "export" && (

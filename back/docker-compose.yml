@@ -9,6 +9,14 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     restart: unless-stopped
+    networks:
+      - app-network
+    command: >
+      --sort_buffer_size=2097152
+      --max_sort_length=8192
+      --tmp_table_size=268435456
+      --max_heap_table_size=268435456
+      --innodb_buffer_pool_size=512M
 
   directus:
     image: directus/directus:latest
@@ -40,11 +48,19 @@ services:
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASS=${SMTP_PASS}
+      - FILES_MAX_SIZE=${FILES_MAX_SIZE}
+      - FILES_MIME_TYPE_ALLOW_LIST=${FILES_MIME_TYPE_ALLOW_LIST}
+      - FILES_FOLDER_SIZE_LIMIT=${FILES_FOLDER_SIZE_LIMIT}
+      - MAX_PAYLOAD_SIZE=${MAX_PAYLOAD_SIZE}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
+      - SOCKET_SERVER_URL=http://socket-server:4010
     volumes:
       - directus_data:/data
       - directus_uploads:/directus/uploads
       - ./extensions:/directus/extensions
     restart: unless-stopped
+    networks:
+      - app-network
 
   socket-server:
     build:
@@ -58,6 +74,12 @@ services:
       - FRONTEND_URL=${FRONTEND_URL}
     depends_on:
       - directus
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   db_data:

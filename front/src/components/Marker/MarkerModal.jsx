@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEditMode } from "../../hooks/useEditMode";
 import ImageWithDirectusUrl from "../common/ImageWithDirectusUrl";
+import { useUploadFile } from "../../hooks/useFiles";
 
 export default function MarkerModal({
   shapeId,
@@ -22,6 +23,7 @@ export default function MarkerModal({
   const shapes = useCanvasStore((state) => state.shapes);
   const marker = shapes.find((s) => s.id === shapeId && s.type === "marker");
   const { isEditMode } = useEditMode();
+  const uploadFile = useUploadFile();
 
   // Permitir override por prop, pero por defecto usa global
   const viewOnly =
@@ -32,6 +34,7 @@ export default function MarkerModal({
   const [images, setImages] = useState([]);
   const [markerColor, setMarkerColor] = useState("#FF4D4F");
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // --- Para zoom ---
   const [zoom, setZoom] = useState(1);
@@ -56,19 +59,33 @@ export default function MarkerModal({
     setOffset({ x: 0, y: 0 });
   }, [lightboxIndex]);
 
-  const onDrop = (acceptedFiles) => {
+  const onDrop = async (acceptedFiles) => {
     if (viewOnly) return; // no hacer nada en solo visualización
-    acceptedFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImages((prev) => [...prev, reader.result]);
-      };
-      reader.readAsDataURL(file);
-    });
+
+    setIsUploading(true);
+    try {
+      for (const file of acceptedFiles) {
+        const uploadResult = await uploadFile.mutateAsync({
+          file,
+          fileName: file.name,
+        });
+        const fileId = uploadResult.data.data.id;
+        setImages((prev) => [...prev, fileId]); // ✅ Guardamos solo el ID
+      }
+    } catch (error) {
+      console.error("Error uploading marker images:", error);
+      alert("Error al subir las imágenes. Inténtalo de nuevo.");
+    } finally {
+      setIsUploading(false);
+    }
   };
+
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
-    disabled: viewOnly,
+    disabled: viewOnly || isUploading,
+    accept: {
+      "image/*": [".jpeg", ".jpg", ".png", ".gif", ".webp"],
+    },
   });
 
   const save = () => {
@@ -219,10 +236,16 @@ export default function MarkerModal({
             {!viewOnly && (
               <div
                 {...getRootProps()}
-                className="border-dashed border-2 border-gray-300 rounded p-4 text-center cursor-pointer"
+                className={`border-dashed border-2 border-gray-300 rounded p-4 text-center cursor-pointer ${
+                  isUploading ? "opacity-50" : ""
+                }`}
               >
                 <input {...getInputProps()} />
-                <p>Arrastra o haz click para subir imágenes</p>
+                <p>
+                  {isUploading
+                    ? "Subiendo imágenes..."
+                    : "Arrastra o haz click para subir imágenes"}
+                </p>
               </div>
             )}
             <div className="mt-2 grid grid-cols-4 gap-2">

@@ -25,6 +25,7 @@ export default function useShapeDrawing({
 }) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
+  const [tempShapeData, setTempShapeData] = useState(null); // 👈 Nuevo estado
 
   // Función para crear figura según herramienta
   const handleMouseDown = (e) => {
@@ -48,8 +49,10 @@ export default function useShapeDrawing({
             strokeWidth: 2,
           },
         };
-        id = addShape(shapeData);
+        // 👈 Solo crear localmente, no enviar al servidor aún
+        id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
+        setTempShapeData(shapeData); // 👈 Guardar datos originales
         break;
       case "arrow":
         shapeData = {
@@ -64,8 +67,9 @@ export default function useShapeDrawing({
             pointerWidth: 20,
           },
         };
-        id = addShape(shapeData);
+        id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
+        setTempShapeData(shapeData);
         break;
       case "rect":
         shapeData = {
@@ -81,8 +85,9 @@ export default function useShapeDrawing({
             strokeWidth: 2,
           },
         };
-        id = addShape(shapeData);
+        id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
+        setTempShapeData(shapeData);
         break;
       case "circle":
         shapeData = {
@@ -97,8 +102,9 @@ export default function useShapeDrawing({
             strokeWidth: 2,
           },
         };
-        id = addShape(shapeData);
+        id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
+        setTempShapeData(shapeData);
         break;
       case "free":
         shapeData = {
@@ -110,8 +116,9 @@ export default function useShapeDrawing({
             strokeWidth: 2,
           },
         };
-        id = addShape(shapeData);
+        id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
+        setTempShapeData(shapeData);
         break;
       case "text":
         shapeData = {
@@ -127,6 +134,7 @@ export default function useShapeDrawing({
             stroke: strokeColor || "#222",
           },
         };
+        // 👈 Texto se crea inmediatamente porque no necesita arrastre
         id = addShape(shapeData);
         setAutoEditTextId(id);
         setTimeout(() => setSelectedShape(id), 0);
@@ -147,6 +155,7 @@ export default function useShapeDrawing({
             images: [],
           },
         };
+        // 👈 Marker se crea inmediatamente porque no necesita arrastre
         id = addShape(shapeData);
         setCurrentId(id);
         break;
@@ -169,24 +178,29 @@ export default function useShapeDrawing({
 
     switch (shape.type) {
       case "free":
-        updateShape(currentId, { points: [...points, pos.x, pos.y] });
+        // 👈 Solo actualizar localmente, no enviar al servidor
+        useCanvasStoreRef
+          .getState()
+          .updateShape(currentId, { points: [...points, pos.x, pos.y] });
         break;
       case "line":
-        updateShape(currentId, {
+        useCanvasStoreRef.getState().updateShape(currentId, {
           points: [points[0], points[1], pos.x, pos.y],
         });
         break;
       case "arrow":
-        updateShape(currentId, {
+        useCanvasStoreRef.getState().updateShape(currentId, {
           points: [points[0], points[1], pos.x, pos.y],
         });
         break;
       case "rect":
-        updateShape(currentId, { width: pos.x - x, height: pos.y - y });
+        useCanvasStoreRef
+          .getState()
+          .updateShape(currentId, { width: pos.x - x, height: pos.y - y });
         break;
       case "circle":
         const radius = Math.hypot(pos.x - x, pos.y - y);
-        updateShape(currentId, { radius });
+        useCanvasStoreRef.getState().updateShape(currentId, { radius });
         break;
       default:
         break;
@@ -194,9 +208,21 @@ export default function useShapeDrawing({
   };
 
   const handleMouseUp = () => {
-    if (isDrawing) {
+    if (isDrawing && currentId && tempShapeData) {
+      // 👈 Ahora SÍ enviar al servidor con los datos finales
+      const finalShape = useCanvasStoreRef
+        .getState()
+        .shapes.find((s) => s.id === currentId);
+      if (finalShape) {
+        addShape({
+          ...tempShapeData,
+          props: finalShape.props, // 👈 Usar las props actualizadas del arrastre
+        });
+      }
+
       setIsDrawing(false);
       setCurrentId(null);
+      setTempShapeData(null);
       saveToHistory();
     }
   };

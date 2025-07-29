@@ -71,6 +71,9 @@ export const useCanvasStore = create((set, get) => ({
     set({
       shapes: shapesFromBackend.map((s) => ({
         ...s,
+        // 🔄 Mapear 'data' del backend a 'props' del frontend
+        props: s.data || s.props || {},
+        layerId: s.layer_id || s.layerId,
         _isNew: false,
         _dirty: false,
         _toDelete: false,
@@ -349,21 +352,138 @@ export const useCanvasStore = create((set, get) => ({
           : state.activeLayerId,
     }));
   },
+  /** Añade una capa que viene del servidor */
+  addRemoteLayer: (layer) =>
+    set((state) => {
+      // Validación: asegurar que tenga id
+      if (!layer.id) {
+        console.warn("🔥 Layer sin id recibido:", layer);
+        return state; // 👈 Devolver estado actual sin cambios
+      }
+      // si ya existe, no hagas nada
+      if (state.layers.find((l) => l.id === layer.id)) {
+        return state; // 👈 Devolver estado actual sin cambios
+      }
+      return {
+        layers: [
+          ...state.layers,
+          {
+            ...layer,
+            _isNew: false,
+            _dirty: false,
+            _toDelete: false,
+          },
+        ],
+      };
+    }),
+
+  updateRemoteLayer: (layer) => {
+    console.log("🔄 updateRemoteLayer - INICIO");
+    console.log("🔄 Layer recibido:", {
+      id: layer.id,
+      name: layer.name,
+      order: layer.order,
+      visible: layer.visible,
+      locked: layer.locked,
+    });
+
+    set((state) => {
+      console.log("🔄 Estado actual ANTES:");
+      state.layers.forEach((l, idx) => {
+        console.log(`  ${idx}: ${l.name} (order: ${l.order}, id: ${l.id})`);
+      });
+
+      const layerIndex = state.layers.findIndex((l) => l.id === layer.id);
+
+      if (layerIndex === -1) {
+        console.warn("❌ Layer no encontrado:", layer.id);
+        return state;
+      }
+
+      const currentLayer = state.layers[layerIndex];
+
+      console.log("🔍 Estado del layer actual:", {
+        name: currentLayer.name,
+        order: currentLayer.order,
+        _dirty: currentLayer._dirty,
+        _isNew: currentLayer._isNew,
+        _toDelete: currentLayer._toDelete,
+      });
+
+      // 🚨 CRÍTICO: Siempre aplicar actualizaciones del servidor
+      // El servidor es la fuente de verdad y puede haber cambios de otros usuarios
+      console.log("✅ Aplicando update remoto del servidor (fuente de verdad)");
+
+      // Crear layer actualizado
+      const updatedLayer = {
+        ...layer,
+        visible: Boolean(layer.visible),
+        locked: Boolean(layer.locked),
+        _isNew: false,
+        _dirty: false,
+        _toDelete: false,
+      };
+
+      // Crear nuevo array con el layer actualizado
+      const newLayers = [...state.layers];
+      newLayers[layerIndex] = updatedLayer;
+
+      // Ordenar por order
+      newLayers.sort((a, b) => a.order - b.order);
+
+      console.log("🔄 Estado DESPUÉS:");
+      newLayers.forEach((l, idx) => {
+        console.log(`  ${idx}: ${l.name} (order: ${l.order}, id: ${l.id})`);
+      });
+
+      const newState = {
+        ...state,
+        layers: newLayers,
+        // Timestamp para forzar re-render
+        _lastLayerUpdate: Date.now(),
+      };
+
+      console.log(
+        "🔄 Nuevo estado creado, timestamp:",
+        newState._lastLayerUpdate
+      );
+
+      return newState;
+    });
+
+    console.log("🔄 updateRemoteLayer - FIN");
+  },
+
+  removeRemoteLayer: (id) =>
+    set((state) => ({
+      layers: state.layers.filter((l) => l.id !== id),
+      activeLayerId:
+        state.activeLayerId === id
+          ? state.layers[0]?.id || null
+          : state.activeLayerId,
+    })),
+
   moveLayerUp: (layerId) => {
     get().saveToHistory();
     set((state) => {
       const idx = state.layers.findIndex((l) => l.id === layerId);
       if (idx <= 0) return {};
       const newLayers = [...state.layers];
+
+      // Intercambiar posiciones
       [newLayers[idx - 1], newLayers[idx]] = [
         newLayers[idx],
         newLayers[idx - 1],
       ];
-      // Actualiza el campo order
-      newLayers.forEach((l, i) => {
-        l.order = i;
-        if (!l._isNew) l._dirty = true;
-      });
+
+      // Solo actualizar el order de los dos layers intercambiados
+      newLayers[idx - 1].order = idx - 1;
+      newLayers[idx].order = idx;
+
+      // Marcar como dirty solo los intercambiados
+      if (!newLayers[idx - 1]._isNew) newLayers[idx - 1]._dirty = true;
+      if (!newLayers[idx]._isNew) newLayers[idx]._dirty = true;
+
       return {
         layers: newLayers,
       };
@@ -375,15 +495,21 @@ export const useCanvasStore = create((set, get) => ({
       const idx = state.layers.findIndex((l) => l.id === layerId);
       if (idx === -1 || idx === state.layers.length - 1) return {};
       const newLayers = [...state.layers];
+
+      // Intercambiar posiciones
       [newLayers[idx], newLayers[idx + 1]] = [
         newLayers[idx + 1],
         newLayers[idx],
       ];
-      // Actualiza el campo order
-      newLayers.forEach((l, i) => {
-        l.order = i;
-        if (!l._isNew) l._dirty = true;
-      });
+
+      // Solo actualizar el order de los dos layers intercambiados
+      newLayers[idx].order = idx;
+      newLayers[idx + 1].order = idx + 1;
+
+      // Marcar como dirty solo los intercambiados
+      if (!newLayers[idx]._isNew) newLayers[idx]._dirty = true;
+      if (!newLayers[idx + 1]._isNew) newLayers[idx + 1]._dirty = true;
+
       return {
         layers: newLayers,
       };
@@ -481,6 +607,57 @@ export const useCanvasStore = create((set, get) => ({
     }
   },
 
+  addRemoteShape: (shape) =>
+    set((state) => {
+      // Validación: asegurar que tenga id
+      if (!shape.id) {
+        console.warn("🔥 Shape sin id recibido:", shape);
+        return state; // 👈 Devolver estado actual sin cambios
+      }
+      return {
+        shapes: [
+          ...state.shapes,
+          {
+            ...shape,
+            // 🔄 Mapear 'data' del backend a 'props' del frontend
+            props: shape.data || shape.props || {},
+            layerId: shape.layer_id || shape.layerId,
+            _isNew: false,
+            _dirty: false,
+            _toDelete: false,
+          },
+        ],
+      };
+    }),
+
+  /** Reemplaza la shape completa, ideal para eventos de update desde el servidor */
+  updateRemoteShape: (shape) =>
+    set((state) => ({
+      shapes: state.shapes.map((s) =>
+        s.id === shape.id
+          ? {
+              ...shape,
+              // 🔄 Mapear 'data' del backend a 'props' del frontend
+              props: shape.data || shape.props || {},
+              layerId: shape.layer_id || shape.layerId,
+              _isNew: false,
+              _dirty: false,
+              _toDelete: false,
+            }
+          : s
+      ),
+    })),
+
+  /** Elimina del array la shape con id dado, para eventos de delete en tiempo real */
+  removeRemoteShape: (id) =>
+    set((state) => ({
+      shapes: state.shapes.filter((s) => s.id !== id),
+      // además limpiamos selección si estaba activa
+      selectedShapeIds: state.selectedShapeIds.filter((sid) => sid !== id),
+      selectedShapeId:
+        state.selectedShapeId === id ? null : state.selectedShapeId,
+    })),
+
   bringShapeToFront: (id) => {
     get().saveToHistory();
     set((state) => {
@@ -517,14 +694,36 @@ export const useCanvasStore = create((set, get) => ({
     get().saveToHistory();
     set((state) => {
       const shapes = [...state.shapes];
-      const idx = shapes.findIndex((s) => s.id === id);
-      if (idx < 0 || idx === shapes.length - 1) return {};
-      [shapes[idx], shapes[idx + 1]] = [shapes[idx + 1], shapes[idx]];
+      const shape = shapes.find((s) => s.id === id);
+      if (!shape) return {};
+
+      // Filtrar shapes de la misma capa
+      const layerShapes = shapes.filter(
+        (s) => s.layerId === shape.layerId && !s._toDelete
+      );
+      const currentIndex = layerShapes.findIndex((s) => s.id === id);
+
+      if (currentIndex === -1 || currentIndex === layerShapes.length - 1)
+        return {};
+
+      // Intercambiar con la shape siguiente
+      const nextShape = layerShapes[currentIndex + 1];
+      const shapeIdx = shapes.findIndex((s) => s.id === id);
+      const nextShapeIdx = shapes.findIndex((s) => s.id === nextShape.id);
+
+      [shapes[shapeIdx], shapes[nextShapeIdx]] = [
+        shapes[nextShapeIdx],
+        shapes[shapeIdx],
+      ];
+
+      // Actualizar order fields y marcar como dirty solo las intercambiadas
+      shapes[shapeIdx].order = currentIndex + 1;
+      shapes[nextShapeIdx].order = currentIndex;
+      if (!shapes[shapeIdx]._isNew) shapes[shapeIdx]._dirty = true;
+      if (!shapes[nextShapeIdx]._isNew) shapes[nextShapeIdx]._dirty = true;
+
       return {
-        shapes: shapes.map((s) => ({
-          ...s,
-          _dirty: !s._isNew ? true : s._dirty,
-        })),
+        shapes,
       };
     });
   },
@@ -532,14 +731,35 @@ export const useCanvasStore = create((set, get) => ({
     get().saveToHistory();
     set((state) => {
       const shapes = [...state.shapes];
-      const idx = shapes.findIndex((s) => s.id === id);
-      if (idx <= 0) return {};
-      [shapes[idx], shapes[idx - 1]] = [shapes[idx - 1], shapes[idx]];
+      const shape = shapes.find((s) => s.id === id);
+      if (!shape) return {};
+
+      // Filtrar shapes de la misma capa
+      const layerShapes = shapes.filter(
+        (s) => s.layerId === shape.layerId && !s._toDelete
+      );
+      const currentIndex = layerShapes.findIndex((s) => s.id === id);
+
+      if (currentIndex <= 0) return {};
+
+      // Intercambiar con la shape anterior
+      const prevShape = layerShapes[currentIndex - 1];
+      const shapeIdx = shapes.findIndex((s) => s.id === id);
+      const prevShapeIdx = shapes.findIndex((s) => s.id === prevShape.id);
+
+      [shapes[shapeIdx], shapes[prevShapeIdx]] = [
+        shapes[prevShapeIdx],
+        shapes[shapeIdx],
+      ];
+
+      // Actualizar order fields y marcar como dirty solo las intercambiadas
+      shapes[shapeIdx].order = currentIndex - 1;
+      shapes[prevShapeIdx].order = currentIndex;
+      if (!shapes[shapeIdx]._isNew) shapes[shapeIdx]._dirty = true;
+      if (!shapes[prevShapeIdx]._isNew) shapes[prevShapeIdx]._dirty = true;
+
       return {
-        shapes: shapes.map((s) => ({
-          ...s,
-          _dirty: !s._isNew ? true : s._dirty,
-        })),
+        shapes,
       };
     });
   },

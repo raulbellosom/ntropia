@@ -4,6 +4,7 @@ import { Eye, EyeOff, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import classNames from "classnames";
 import { Draggable } from "@hello-pangea/dnd";
 import { useCanvasStore } from "../../store/useCanvasStore";
+import { useDeleteShape, useUpdateShape } from "../../hooks/useShapes";
 
 export default function ShapeItem({
   obj,
@@ -12,22 +13,135 @@ export default function ShapeItem({
   selectedShapeIds,
   setSelectedShape,
   toggleShapeVisibility,
-  removeShape,
   editingId,
   setEditingId,
   editingValue,
   setEditingValue,
-  handleRenameShape,
+  handleRenameShape: _, // we'll override
   objects,
   isEditMode,
   setActiveLayer,
 }) {
+  const deleteShape = useDeleteShape();
+  const updateShape = useUpdateShape();
+
+  const removeLocalShape = useCanvasStore((s) => s.removeShape);
+  const renameLocalShape = useCanvasStore((s) => s.renameShape);
+
+  // Handle delete (optimistic + server)
+  const onDelete = (e) => {
+    e.stopPropagation();
+    removeLocalShape(obj.id);
+    deleteShape.mutate(obj.id);
+  };
+
+  // Handle rename
+  const onRename = () => {
+    if (editingValue.trim()) {
+      renameLocalShape(obj.id, editingValue.trim());
+      updateShape.mutate({
+        id: obj.id,
+        data: { name: editingValue.trim() },
+      });
+    }
+    setEditingId(null);
+    setEditingValue("");
+  };
+
+  // Handle reorder forward/back
+  const onBringForward = () => {
+    // Obtener shapes ANTES del update optimista
+    const shapes = useCanvasStore.getState().shapes;
+    const layerShapes = shapes.filter(
+      (s) => s.layerId === obj.layerId && !s._toDelete
+    );
+    const currentIndex = layerShapes.findIndex((s) => s.id === obj.id);
+
+    if (currentIndex < layerShapes.length - 1) {
+      const currentShape = layerShapes[currentIndex];
+      const nextShape = layerShapes[currentIndex + 1];
+
+      // Optimistic update
+      useCanvasStore.getState().bringShapeForward(obj.id);
+
+      // Persistir ambas shapes con toda la información
+      updateShape.mutate({
+        id: currentShape.id,
+        data: {
+          name: currentShape.name,
+          type: currentShape.type,
+          order: currentIndex + 1,
+          layer_id: currentShape.layerId,
+          workspace_id: currentShape.workspace_id,
+          data: currentShape.props,
+          visible: currentShape.visible,
+        },
+      });
+
+      updateShape.mutate({
+        id: nextShape.id,
+        data: {
+          name: nextShape.name,
+          type: nextShape.type,
+          order: currentIndex,
+          layer_id: nextShape.layerId,
+          workspace_id: nextShape.workspace_id,
+          data: nextShape.props,
+          visible: nextShape.visible,
+        },
+      });
+    }
+  };
+
+  const onSendBackward = () => {
+    // Obtener shapes ANTES del update optimista
+    const shapes = useCanvasStore.getState().shapes;
+    const layerShapes = shapes.filter(
+      (s) => s.layerId === obj.layerId && !s._toDelete
+    );
+    const currentIndex = layerShapes.findIndex((s) => s.id === obj.id);
+
+    if (currentIndex > 0) {
+      const currentShape = layerShapes[currentIndex];
+      const prevShape = layerShapes[currentIndex - 1];
+
+      // Optimistic update
+      useCanvasStore.getState().sendShapeBackward(obj.id);
+
+      // Persistir ambas shapes con toda la información
+      updateShape.mutate({
+        id: currentShape.id,
+        data: {
+          name: currentShape.name,
+          type: currentShape.type,
+          order: currentIndex - 1,
+          layer_id: currentShape.layerId,
+          workspace_id: currentShape.workspace_id,
+          data: currentShape.props,
+          visible: currentShape.visible,
+        },
+      });
+
+      updateShape.mutate({
+        id: prevShape.id,
+        data: {
+          name: prevShape.name,
+          type: prevShape.type,
+          order: currentIndex,
+          layer_id: prevShape.layerId,
+          workspace_id: prevShape.workspace_id,
+          data: prevShape.props,
+          visible: prevShape.visible,
+        },
+      });
+    }
+  };
+
   return (
     <Draggable
-      draggableId={obj.id}
+      draggableId={`shape-${obj.id}`} // 👈 Asegúrate que sea string y único
       isDragDisabled={!isEditMode || layerLocked}
       index={idx}
-      key={obj.id}
     >
       {(objProvided) => (
         <li
@@ -95,13 +209,11 @@ export default function ShapeItem({
                       ? (e) => setEditingValue(e.target.value)
                       : undefined
                   }
-                  onBlur={
-                    isEditMode ? () => handleRenameShape(obj.id) : undefined
-                  }
+                  onBlur={isEditMode ? onRename : undefined}
                   onKeyDown={
                     isEditMode
                       ? (e) => {
-                          if (e.key === "Enter") handleRenameShape(obj.id);
+                          if (e.key === "Enter") onRename();
                           if (e.key === "Escape") {
                             setEditingId(null);
                             setEditingValue("");
@@ -117,15 +229,13 @@ export default function ShapeItem({
               )}
             </span>
           </div>
-          {/* Solo en modo edición los botones de reordenar y eliminar */}
+
           {isEditMode && !layerLocked && (
             <>
               <button
                 className="ml-2 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"
                 title="Subir"
-                onClick={() =>
-                  useCanvasStore.getState().bringShapeForward(obj.id)
-                }
+                onClick={onBringForward}
                 disabled={idx === objects.length - 1}
               >
                 <ChevronDown size={18} />
@@ -133,9 +243,7 @@ export default function ShapeItem({
               <button
                 className="ml-1 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"
                 title="Bajar"
-                onClick={() =>
-                  useCanvasStore.getState().sendShapeBackward(obj.id)
-                }
+                onClick={onSendBackward}
                 disabled={idx === 0}
               >
                 <ChevronUp size={18} />
@@ -143,7 +251,7 @@ export default function ShapeItem({
               <button
                 className="ml-2 text-red-400 hover:text-red-600"
                 title="Eliminar elemento"
-                onClick={() => removeShape(obj.id)}
+                onClick={onDelete}
               >
                 <Trash2 size={18} />
               </button>

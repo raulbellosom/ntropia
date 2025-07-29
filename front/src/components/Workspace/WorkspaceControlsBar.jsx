@@ -1,16 +1,5 @@
 // src/components/Workspace/WorkspaceControlsBar.jsx
-import {
-  LogOut,
-  Eye,
-  Pencil,
-  Save,
-  Undo2,
-  XCircle,
-  Lock,
-  Undo,
-  Redo,
-  Settings,
-} from "lucide-react";
+import { LogOut, Eye, Pencil, Lock, Undo, Redo, Settings } from "lucide-react";
 import classNames from "classnames";
 import { useCanvasStore } from "../../store/useCanvasStore";
 import SettingsMenuModal from "../Canvas/SettingsMenuModal";
@@ -19,8 +8,6 @@ import { useState } from "react";
 export default function WorkspaceControlsBar({
   mode,
   onToggleMode,
-  onSave,
-  onDiscard,
   onExit,
   userRole, // Nuevo prop para el rol del usuario
   isOwner = false, // Nuevo prop para indicar si es el propietario del workspace
@@ -114,26 +101,6 @@ export default function WorkspaceControlsBar({
 
           {mode === "edit" && canEdit() && (
             <>
-              {/* Guardar */}
-              <button
-                onClick={onSave}
-                className="flex items-center gap-1 px-3 py-2 rounded-lg text-white transition font-medium  hover:bg-blue-700"
-                title="Guardar cambios"
-                style={{ minWidth: 38, minHeight: 38 }}
-              >
-                <Save size={18} />
-                <span className="hidden md:inline">Guardar</span>
-              </button>
-              {/* Descartar */}
-              <button
-                onClick={onDiscard}
-                className="flex items-center gap-1 px-3 py-2 rounded-lg text-white transition font-medium  hover:bg-blue-700"
-                title="Descartar cambios"
-                style={{ minWidth: 38, minHeight: 38 }}
-              >
-                <Undo2 size={18} />
-                <span className="hidden md:inline">Descartar</span>
-              </button>
               <button
                 onClick={undo}
                 title="Deshacer (Ctrl+Z)"
