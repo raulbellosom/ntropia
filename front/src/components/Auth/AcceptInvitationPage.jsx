@@ -13,10 +13,10 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
-import useAuthStore from "../../store/useAuthStore";
 import {
   useInvitationByToken,
   useAcceptInvitation,
+  useRejectInvitation,
 } from "../../hooks/useInvitations";
 import { useCurrentUser } from "../../hooks/useAuth";
 
@@ -36,8 +36,11 @@ export default function AcceptInvitationPage() {
   const { data: invitation, isLoading, isError } = useInvitationByToken(token);
   const { mutate: acceptInvitation, isLoading: isAccepting } =
     useAcceptInvitation();
+  const { mutate: rejectInvitation, isLoading: isRejecting } =
+    useRejectInvitation();
 
   const [accepted, setAccepted] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [error, setError] = useState("");
 
   const phrase = useMemo(
@@ -57,6 +60,22 @@ export default function AcceptInvitationPage() {
         },
         onError: () =>
           setError("No se pudo aceptar la invitación. Intenta nuevamente."),
+      }
+    );
+  };
+
+  const handleReject = () => {
+    setError("");
+    rejectInvitation(
+      { token },
+      {
+        onSuccess: () => {
+          setRejected(true);
+          toast.success("Invitación rechazada");
+          setTimeout(() => navigate("/dashboard"), 1800);
+        },
+        onError: () =>
+          setError("No se pudo rechazar la invitación. Intenta nuevamente."),
       }
     );
   };
@@ -110,7 +129,7 @@ export default function AcceptInvitationPage() {
         )}
 
         {/* Invitación válida y NO aceptada */}
-        {!isLoading && invitation && !accepted && (
+        {!isLoading && invitation && !accepted && !rejected && (
           <motion.div
             key="valid"
             initial={{ opacity: 0, y: 14 }}
@@ -162,18 +181,28 @@ export default function AcceptInvitationPage() {
                 Inicia sesión para aceptar
               </Link>
             ) : (
-              <button
-                onClick={handleAccept}
-                disabled={isAccepting}
-                className={`mt-4 w-full flex items-center justify-center gap-2 px-5 py-2 rounded-xl font-bold transition text-lg shadow ${
-                  isAccepting
-                    ? "bg-sky-400 cursor-not-allowed"
-                    : "bg-sky-600 hover:bg-sky-700 text-white"
-                }`}
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                {isAccepting ? "Aceptando..." : "Aceptar invitación"}
-              </button>
+              <div className="flex gap-3 mt-4 w-full">
+                <button
+                  onClick={handleReject}
+                  disabled={isRejecting || isAccepting}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl border-2 border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold transition text-base shadow"
+                >
+                  <XCircle className="w-5 h-5" />
+                  {isRejecting ? "Rechazando..." : "Rechazar"}
+                </button>
+                <button
+                  onClick={handleAccept}
+                  disabled={isAccepting || isRejecting}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold transition text-base shadow ${
+                    isAccepting || isRejecting
+                      ? "bg-sky-400 cursor-not-allowed"
+                      : "bg-sky-600 hover:bg-sky-700 text-white"
+                  }`}
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  {isAccepting ? "Aceptando..." : "Aceptar"}
+                </button>
+              </div>
             )}
           </motion.div>
         )}
@@ -192,6 +221,31 @@ export default function AcceptInvitationPage() {
             </div>
             <div className="text-gray-600 mb-2">
               Ya eres miembro de{" "}
+              <span className="font-bold">{invitation.workspace.name}</span>.
+            </div>
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="mt-4 px-6 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow transition text-lg"
+            >
+              Ir al Dashboard
+            </button>
+          </motion.div>
+        )}
+
+        {/* Invitación rechazada */}
+        {!isLoading && rejected && (
+          <motion.div
+            key="rejected"
+            className="flex flex-col items-center gap-3 py-14"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <XCircle className="w-14 h-14 text-orange-500 mb-2 animate-pulse" />
+            <div className="text-2xl font-extrabold text-orange-700 text-center">
+              Invitación rechazada
+            </div>
+            <div className="text-gray-600 mb-2">
+              Has rechazado la invitación a{" "}
               <span className="font-bold">{invitation.workspace.name}</span>.
             </div>
             <button

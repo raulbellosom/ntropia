@@ -7,11 +7,13 @@ import {
   ChevronLeftCircle,
   ChevronRightCircle,
   Droplet,
+  X,
   XCircle,
 } from "lucide-react";
 import { useEditMode } from "../../hooks/useEditMode";
 import ImageWithDirectusUrl from "../common/ImageWithDirectusUrl";
 import { useUploadFile } from "../../hooks/useFiles";
+import { useUpdateShape } from "../../hooks/useShapes";
 
 export default function MarkerModal({
   shapeId,
@@ -24,6 +26,7 @@ export default function MarkerModal({
   const marker = shapes.find((s) => s.id === shapeId && s.type === "marker");
   const { isEditMode } = useEditMode();
   const uploadFile = useUploadFile();
+  const updateShapeMutation = useUpdateShape(); // Hook para persistir en tiempo real
 
   // Permitir override por prop, pero por defecto usa global
   const viewOnly =
@@ -53,6 +56,57 @@ export default function MarkerModal({
     }
   }, [marker]);
 
+  // Auto-save cuando cambien los datos (opcional, para UX mejorada)
+  useEffect(() => {
+    if (marker && !viewOnly) {
+      const timeoutId = setTimeout(() => {
+        // Solo auto-guardar si hay cambios
+        const hasChanges =
+          title !== (marker.props.title || "") ||
+          description !== (marker.props.description || "") ||
+          JSON.stringify(images) !==
+            JSON.stringify(marker.props.images || []) ||
+          markerColor !== (marker.props.color || "#FF4D4F");
+
+        if (hasChanges) {
+          // Actualizar store local
+          updateShape(shapeId, {
+            title,
+            description,
+            images,
+            color: markerColor,
+          });
+
+          // Sincronizar con servidor
+          updateShapeMutation.mutate({
+            id: shapeId,
+            data: {
+              data: {
+                ...marker.props,
+                title,
+                description,
+                images,
+                color: markerColor,
+              },
+            },
+          });
+        }
+      }, 2000); // Auto-save después de 2 segundos de inactividad
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [
+    title,
+    description,
+    images,
+    markerColor,
+    marker,
+    viewOnly,
+    shapeId,
+    updateShape,
+    updateShapeMutation,
+  ]);
+
   // Resetear zoom cuando abres otra imagen
   useEffect(() => {
     setZoom(1);
@@ -64,14 +118,41 @@ export default function MarkerModal({
 
     setIsUploading(true);
     try {
+      const newImageIds = [];
       for (const file of acceptedFiles) {
         const uploadResult = await uploadFile.mutateAsync({
           file,
           fileName: file.name,
         });
         const fileId = uploadResult.data.data.id;
-        setImages((prev) => [...prev, fileId]); // ✅ Guardamos solo el ID
+        newImageIds.push(fileId);
       }
+
+      // Actualizar el estado local inmediatamente
+      const updatedImages = [...images, ...newImageIds];
+      setImages(updatedImages);
+
+      // Sincronizar inmediatamente con la store y servidor
+      updateShape(shapeId, {
+        title,
+        description,
+        images: updatedImages, // ✅ Incluir las nuevas imágenes
+        color: markerColor,
+      });
+
+      // Persistir en servidor
+      updateShapeMutation.mutate({
+        id: shapeId,
+        data: {
+          data: {
+            ...marker.props,
+            title,
+            description,
+            images: updatedImages, // ✅ Los IDs se guardan inmediatamente
+            color: markerColor,
+          },
+        },
+      });
     } catch (error) {
       console.error("Error uploading marker images:", error);
       alert("Error al subir las imágenes. Inténtalo de nuevo.");
@@ -87,16 +168,6 @@ export default function MarkerModal({
       "image/*": [".jpeg", ".jpg", ".png", ".gif", ".webp"],
     },
   });
-
-  const save = () => {
-    updateShape(shapeId, {
-      title,
-      description,
-      images,
-      color: markerColor,
-    });
-    onClose();
-  };
 
   if (!marker) return null;
 
@@ -236,73 +307,130 @@ export default function MarkerModal({
             {!viewOnly && (
               <div
                 {...getRootProps()}
-                className={`border-dashed border-2 border-gray-300 rounded p-4 text-center cursor-pointer ${
-                  isUploading ? "opacity-50" : ""
+                className={`border-dashed border-2 border-gray-300 rounded-lg p-3 text-center cursor-pointer transition-colors hover:border-gray-400 hover:bg-gray-50 ${
+                  isUploading ? "opacity-50 pointer-events-none" : ""
                 }`}
               >
                 <input {...getInputProps()} />
-                <p>
-                  {isUploading
-                    ? "Subiendo imágenes..."
-                    : "Arrastra o haz click para subir imágenes"}
-                </p>
+                <div className="flex items-center justify-center gap-2 text-gray-600">
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  <span className="text-sm">
+                    {isUploading
+                      ? "Subiendo imágenes..."
+                      : "Arrastra imágenes o haz clic"}
+                  </span>
+                </div>
               </div>
             )}
-            <div className="mt-2 grid grid-cols-4 gap-2">
-              {images.length === 0 && viewOnly && (
-                <div className="col-span-4 text-center text-slate-400 italic">
-                  Sin imágenes
-                </div>
-              )}
-              {images.map((src, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className="focus:outline-none"
-                  tabIndex={viewOnly ? 0 : -1}
-                  onClick={() => viewOnly && setLightboxIndex(i)}
-                  style={{
-                    cursor: viewOnly ? "zoom-in" : "default",
-                    width: 64,
-                    height: 64,
-                    overflow: "hidden",
-                    borderRadius: "0.5rem",
-                    background: "#f8fafc",
-                    padding: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <ImageWithDirectusUrl
-                    src={src}
-                    alt={`preview-${i}`}
-                    className="object-cover w-full h-full rounded"
-                    style={{ width: 64, height: 64 }}
-                    draggable={false}
-                  />
-                </button>
-              ))}
+            <div className="mt-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-2">
+              <div className="grid grid-cols-4 gap-2">
+                {images.length === 0 && viewOnly && (
+                  <div className="col-span-4 text-center text-slate-400 italic py-6 text-sm">
+                    Sin imágenes
+                  </div>
+                )}
+                {images.map((src, i) => (
+                  <div key={i} className="relative group">
+                    <button
+                      type="button"
+                      className="focus:outline-none w-full relative overflow-hidden rounded-md bg-slate-100 hover:bg-slate-200 transition-colors block"
+                      tabIndex={viewOnly ? 0 : -1}
+                      onClick={() =>
+                        viewOnly
+                          ? setLightboxIndex(i)
+                          : !viewOnly && setLightboxIndex(i)
+                      }
+                      style={{
+                        cursor: "zoom-in",
+                        aspectRatio: "1",
+                        minHeight: "80px",
+                      }}
+                    >
+                      <ImageWithDirectusUrl
+                        src={src}
+                        alt={`preview-${i}`}
+                        className="object-cover w-full h-full rounded-md"
+                        draggable={false}
+                        onError={(e) => {
+                          console.log("Error loading image:", src);
+                          e.target.style.backgroundColor = "#f1f5f9";
+                        }}
+                        onLoad={(e) => {
+                          e.target.style.backgroundColor = "transparent";
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-50 rounded-full p-1.5">
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                    </button>
+                    {!viewOnly && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const updatedImages = images.filter(
+                            (_, idx) => idx !== i
+                          );
+                          setImages(updatedImages);
+
+                          // Sincronizar inmediatamente
+                          updateShape(shapeId, {
+                            title,
+                            description,
+                            images: updatedImages,
+                            color: markerColor,
+                          });
+
+                          updateShapeMutation.mutate({
+                            id: shapeId,
+                            data: {
+                              data: {
+                                ...marker.props,
+                                title,
+                                description,
+                                images: updatedImages,
+                                color: markerColor,
+                              },
+                            },
+                          });
+                        }}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                        title="Eliminar imagen"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-
-          {/* Acciones */}
-          {!viewOnly && (
-            <div className="mt-6 flex justify-end space-x-2">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 bg-gray-200 rounded"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={save}
-                className="px-4 py-2 bg-blue-500 text-white rounded"
-              >
-                Guardar
-              </button>
-            </div>
-          )}
         </div>
       </ModalWrapper>
       {lightboxIndex !== null && images[lightboxIndex] && (

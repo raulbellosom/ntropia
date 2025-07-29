@@ -139,20 +139,24 @@ export default function LayersPanel() {
 
       // ── Reordenar capas ─────────────────────────────────────────
       if (type === "layer") {
-        const visible = layers.filter((l) => !l._toDelete);
+        // Obtener layers ordenados como en la UI (mayor order primero)
+        const allLayers = layers.filter((l) => !l._toDelete);
+        const sortedLayers = [...allLayers].sort((a, b) => b.order - a.order);
+
         if (source.index === destination.index) return;
 
-        const movedLayer = visible[source.index];
-        const targetLayer = visible[destination.index];
+        const movedLayer = sortedLayers[source.index];
+        const targetLayer = sortedLayers[destination.index];
 
         // 🚀 SOLO servidor - Sin updates locales
         const updateBothLayers = async () => {
           try {
+            // Intercambiar los orders
             await updateLayer.mutateAsync({
               id: movedLayer.id,
               data: {
                 name: movedLayer.name,
-                order: destination.index,
+                order: targetLayer.order,
                 visible: movedLayer.visible,
                 locked: movedLayer.locked,
                 opacity: movedLayer.opacity,
@@ -163,7 +167,7 @@ export default function LayersPanel() {
               id: targetLayer.id,
               data: {
                 name: targetLayer.name,
-                order: source.index,
+                order: movedLayer.order,
                 visible: targetLayer.visible,
                 locked: targetLayer.locked,
                 opacity: targetLayer.opacity,
@@ -222,34 +226,34 @@ export default function LayersPanel() {
         "pointer-events-auto opacity-100 translate-x-0": layersPanelVisible,
       })}
       style={{
-        width: isMobile ? "95vw" : "23rem",
-        minWidth: isMobile ? 160 : 300,
-        maxWidth: isMobile ? 350 : 450,
+        width: isMobile ? "95vw" : "20rem",
+        minWidth: isMobile ? 160 : 280,
+        maxWidth: isMobile ? 350 : 400,
         ...(isMobile ? { bottom: "auto", right: "auto" } : {}),
       }}
     >
-      <aside className="w-full bg-slate-900/95 text-white shadow-2xl p-4 rounded-2xl border border-blue-900 backdrop-blur-lg text-xs">
+      <aside className="w-full bg-slate-900/95 text-white shadow-2xl p-3 rounded-xl border border-blue-900/50 backdrop-blur-lg text-xs">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Layers size={20} /> Capas
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <Layers size={18} /> Capas
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {isEditMode && (
               <button
                 onClick={handleAddLayer}
                 title="Agregar capa"
-                className="text-green-400 hover:text-green-300"
+                className="text-green-400 hover:text-green-300 p-1 rounded transition-colors"
               >
-                <PlusCircle size={22} />
+                <PlusCircle size={20} />
               </button>
             )}
             <button
               onClick={hideLayersPanel}
               title="Cerrar panel"
-              className="ml-2 text-slate-400 hover:text-red-500 p-1 rounded transition"
+              className="text-slate-400 hover:text-red-400 p-1 rounded transition-colors"
             >
-              <X size={22} />
+              <X size={20} />
             </button>
           </div>
         </div>
@@ -265,11 +269,11 @@ export default function LayersPanel() {
                 <ul
                   {...provided.droppableProps}
                   ref={provided.innerRef}
-                  className={classNames("space-y-4", { "space-y-2": isMobile })}
+                  className={classNames("space-y-2", { "space-y-1": isMobile })}
                 >
                   {layers
                     .filter((l) => !l._toDelete && l.id) // 👈 Filtrar primero
-                    .sort((a, b) => a.order - b.order) // 👈 ORDENAR por field order
+                    .sort((a, b) => b.order - a.order) // 👈 ORDEN INVERSO: Mayor order arriba (al frente)
                     .map((layer, idx) => {
                       const objects = shapes.filter(
                         (s) => s.layerId === layer.id && !s._toDelete && s.id // 👈 También filtrar shapes sin id

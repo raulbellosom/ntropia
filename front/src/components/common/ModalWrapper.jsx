@@ -41,7 +41,7 @@ export default function ModalWrapper({
         <DialogBackdrop className="fixed inset-0 bg-black/30" />
 
         <DialogPanel
-          className={`bg-white rounded-lg shadow-lg p-4 z-10 w-full max-w-[95%] md:max-w-2xl ${panelClassName}`}
+          className={`bg-white rounded-lg shadow-lg p-4 z-10 w-full max-w-[95%] max-h-[95dvh] md:max-w-2xl ${panelClassName}`}
         >
           {title && (
             <DialogTitle

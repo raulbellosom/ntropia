@@ -378,21 +378,7 @@ export const useCanvasStore = create((set, get) => ({
     }),
 
   updateRemoteLayer: (layer) => {
-    console.log("🔄 updateRemoteLayer - INICIO");
-    console.log("🔄 Layer recibido:", {
-      id: layer.id,
-      name: layer.name,
-      order: layer.order,
-      visible: layer.visible,
-      locked: layer.locked,
-    });
-
     set((state) => {
-      console.log("🔄 Estado actual ANTES:");
-      state.layers.forEach((l, idx) => {
-        console.log(`  ${idx}: ${l.name} (order: ${l.order}, id: ${l.id})`);
-      });
-
       const layerIndex = state.layers.findIndex((l) => l.id === layer.id);
 
       if (layerIndex === -1) {
@@ -401,18 +387,6 @@ export const useCanvasStore = create((set, get) => ({
       }
 
       const currentLayer = state.layers[layerIndex];
-
-      console.log("🔍 Estado del layer actual:", {
-        name: currentLayer.name,
-        order: currentLayer.order,
-        _dirty: currentLayer._dirty,
-        _isNew: currentLayer._isNew,
-        _toDelete: currentLayer._toDelete,
-      });
-
-      // 🚨 CRÍTICO: Siempre aplicar actualizaciones del servidor
-      // El servidor es la fuente de verdad y puede haber cambios de otros usuarios
-      console.log("✅ Aplicando update remoto del servidor (fuente de verdad)");
 
       // Crear layer actualizado
       const updatedLayer = {
@@ -431,11 +405,6 @@ export const useCanvasStore = create((set, get) => ({
       // Ordenar por order
       newLayers.sort((a, b) => a.order - b.order);
 
-      console.log("🔄 Estado DESPUÉS:");
-      newLayers.forEach((l, idx) => {
-        console.log(`  ${idx}: ${l.name} (order: ${l.order}, id: ${l.id})`);
-      });
-
       const newState = {
         ...state,
         layers: newLayers,
@@ -443,15 +412,8 @@ export const useCanvasStore = create((set, get) => ({
         _lastLayerUpdate: Date.now(),
       };
 
-      console.log(
-        "🔄 Nuevo estado creado, timestamp:",
-        newState._lastLayerUpdate
-      );
-
       return newState;
     });
-
-    console.log("🔄 updateRemoteLayer - FIN");
   },
 
   removeRemoteLayer: (id) =>

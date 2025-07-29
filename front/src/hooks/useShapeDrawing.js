@@ -52,7 +52,7 @@ export default function useShapeDrawing({
         // 👈 Solo crear localmente, no enviar al servidor aún
         id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
-        setTempShapeData(shapeData); // 👈 Guardar datos originales
+        setTempShapeData(shapeData);
         break;
       case "arrow":
         shapeData = {
@@ -67,6 +67,7 @@ export default function useShapeDrawing({
             pointerWidth: 20,
           },
         };
+        // 👈 Solo crear localmente, no enviar al servidor aún
         id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
         setTempShapeData(shapeData);
@@ -85,6 +86,7 @@ export default function useShapeDrawing({
             strokeWidth: 2,
           },
         };
+        // 👈 Solo crear localmente, no enviar al servidor aún
         id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
         setTempShapeData(shapeData);
@@ -102,6 +104,7 @@ export default function useShapeDrawing({
             strokeWidth: 2,
           },
         };
+        // 👈 Solo crear localmente, no enviar al servidor aún
         id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
         setTempShapeData(shapeData);
@@ -116,6 +119,7 @@ export default function useShapeDrawing({
             strokeWidth: 2,
           },
         };
+        // 👈 Solo crear localmente, no enviar al servidor aún
         id = useCanvasStoreRef.getState().addShape(shapeData);
         setCurrentId(id);
         setTempShapeData(shapeData);
@@ -127,20 +131,21 @@ export default function useShapeDrawing({
           props: {
             x: pos.x,
             y: pos.y,
+            width: 0,
+            height: 0,
             text: "Ingrese texto",
             fontSize: 16,
             fontFamily: "Arial",
             fill: fillColor || "#eee",
             stroke: strokeColor || "#222",
+            align: "left",
+            fontStyle: "normal",
           },
         };
-        // 👈 Texto se crea inmediatamente porque no necesita arrastre
-        id = addShape(shapeData);
-        setAutoEditTextId(id);
-        setTimeout(() => setSelectedShape(id), 0);
-        if (useCanvasStoreRef) {
-          useCanvasStoreRef.getState().setTool("select");
-        }
+        // 👈 Solo crear localmente, como los demás shapes
+        id = useCanvasStoreRef.getState().addShape(shapeData);
+        setCurrentId(id);
+        setTempShapeData(shapeData);
         break;
       case "marker":
         shapeData = {
@@ -198,6 +203,11 @@ export default function useShapeDrawing({
           .getState()
           .updateShape(currentId, { width: pos.x - x, height: pos.y - y });
         break;
+      case "text":
+        useCanvasStoreRef
+          .getState()
+          .updateShape(currentId, { width: pos.x - x, height: pos.y - y });
+        break;
       case "circle":
         const radius = Math.hypot(pos.x - x, pos.y - y);
         useCanvasStoreRef.getState().updateShape(currentId, { radius });
@@ -214,10 +224,36 @@ export default function useShapeDrawing({
         .getState()
         .shapes.find((s) => s.id === currentId);
       if (finalShape) {
+        // Remover la shape temporal local
+        useCanvasStoreRef.getState().removeShape(currentId);
+
+        // Para texto, asegurar que tenga un tamaño mínimo
+        let finalProps = finalShape.props;
+        if (tempShapeData.type === "text") {
+          finalProps = {
+            ...finalProps,
+            width: Math.max(Math.abs(finalProps.width), 150),
+            height: Math.max(Math.abs(finalProps.height), 50),
+          };
+        }
+
+        // Enviar la shape final al servidor
         addShape({
           ...tempShapeData,
-          props: finalShape.props, // 👈 Usar las props actualizadas del arrastre
+          props: finalProps, // 👈 Usar las props actualizadas del arrastre
         });
+
+        // Para texto, activar modo edición después de crear
+        if (tempShapeData.type === "text") {
+          // Esperar un momento para que la shape se cree en el servidor
+          setTimeout(() => {
+            // No podemos usar el currentId porque será diferente después del servidor
+            // En su lugar, activaremos el auto-edit del último texto creado
+            if (useCanvasStoreRef) {
+              useCanvasStoreRef.getState().setTool("select");
+            }
+          }, 100);
+        }
       }
 
       setIsDrawing(false);

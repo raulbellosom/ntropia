@@ -8,6 +8,7 @@ import {
   ArrowDownToLine,
   ArrowUp,
   ArrowDown,
+  Settings,
 } from "lucide-react";
 
 export default function ContextMenu({
@@ -22,6 +23,7 @@ export default function ContextMenu({
   clipboardShape,
   onClose,
   onReplace,
+  onOpenProperties, // Nueva prop para abrir propiedades
 }) {
   const menuRef = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -84,6 +86,15 @@ export default function ContextMenu({
   // Opciones del menú contextual
   const menuOptions = [
     {
+      label: "Propiedades",
+      icon: Settings,
+      action: (event) =>
+        onOpenProperties(event || { clientX: pos.left, clientY: pos.top }),
+      shortcut: "",
+      className: "text-blue-600 dark:text-blue-400",
+    },
+    { type: "divider" },
+    {
       label: "Copiar",
       icon: Copy,
       action: () => onCopy(contextMenu.shapeId),
@@ -143,12 +154,13 @@ export default function ContextMenu({
       className={`
         fixed z-[9999] min-w-48 px-2 py-2 rounded-2xl
         border border-slate-200 dark:border-slate-700
-        bg-white/90 dark:bg-slate-900/90
-        shadow-xl shadow-black/10
+        bg-white/95 dark:bg-slate-900/95
+        shadow-xl shadow-black/20
         ring-1 ring-slate-300/70 dark:ring-slate-800/50
         backdrop-blur-md
         ${animation}
         select-none
+        md:min-w-48 min-w-56
       `}
       style={{
         top: pos.top,
@@ -157,7 +169,7 @@ export default function ContextMenu({
         position: "fixed",
       }}
     >
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         {menuOptions.map((item, i) =>
           item.type === "divider" ? (
             <div
@@ -168,28 +180,38 @@ export default function ContextMenu({
             <button
               key={item.label}
               className={`
-                w-full text-left flex items-center gap-2
-                px-4 py-2
+                w-full text-left flex items-center gap-3
+                px-4 py-3 md:py-2
                 rounded-lg
-                text-[15px] font-medium
+                text-base md:text-[15px] font-medium
                 hover:bg-blue-50 dark:hover:bg-slate-500
                 focus:bg-blue-100 dark:focus:bg-blue-900
-                transition-colors
+                transition-colors duration-150
+                touch-manipulation
                 ${item.className || "text-slate-700 dark:text-slate-200"}
               `}
               onMouseDown={(e) => {
                 e.preventDefault();
                 if (!item.disabled) {
-                  item.action();
+                  item.action(e);
+                  onClose();
+                }
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                if (!item.disabled) {
+                  item.action(e);
                   onClose();
                 }
               }}
               disabled={item.disabled}
             >
-              <item.icon size={18} className="opacity-80" />
+              <item.icon size={20} className="opacity-80 flex-shrink-0" />
               <span className="flex-1">{item.label}</span>
               {item.shortcut && (
-                <span className="text-xs opacity-60">{item.shortcut}</span>
+                <span className="text-xs opacity-60 hidden md:inline">
+                  {item.shortcut}
+                </span>
               )}
             </button>
           )

@@ -1,7 +1,7 @@
 // src/components/Canvas/CanvasLayers.jsx
 
 import React from "react";
-import { Layer, Group } from "react-konva";
+import { Group } from "react-konva";
 import FreeDrawShape from "../Shapes/FreeDrawShape";
 import RectShape from "../Shapes/RectShape";
 import CircleShape from "../Shapes/CircleShape";
@@ -102,7 +102,12 @@ export default function CanvasLayers({
                         },
                         onTransformEnd: handleTransformEnd,
                         onDragEnd: handleShapeDragEnd,
-                        onDoubleClick: () => handleShapeDoubleClick(s.id),
+                        // Solo pasar onDoubleClick si la shape permite doble clic
+                        ...(allowDblClick
+                          ? {
+                              onDoubleClick: () => handleShapeDoubleClick(s.id),
+                            }
+                          : {}),
                         onContextMenu: (e) => {
                           if (tool === "select") {
                             e.evt.preventDefault();

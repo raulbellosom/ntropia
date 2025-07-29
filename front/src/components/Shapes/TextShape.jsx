@@ -8,11 +8,15 @@ export default function TextShape({
   id,
   x,
   y,
+  width,
+  height,
   text,
   fontSize,
   fontFamily,
   fill, // fondo
   stroke, // color de letra
+  fontStyle, // bold, italic, normal
+  align, // left, center, right
   isSelected,
   onSelect,
   onTransformEnd,
@@ -20,8 +24,15 @@ export default function TextShape({
   rotation,
   autoEdit,
   onContextMenu,
+  // Props estándar que vienen de CanvasLayers
+  draggable,
+  listening,
+  onDragEnd,
+  onDoubleClick,
+  onTap,
+  isInMultiSelection,
 }) {
-  const groupRef = useRef();
+  const groupRef = useRef(); // Mantenemos por si lo necesitamos después
   const textRef = useRef();
   const trRef = useRef();
   const [isEditing, setIsEditing] = useState(autoEdit || false);
@@ -34,39 +45,64 @@ export default function TextShape({
     if (autoEdit) setIsEditing(true);
   }, [autoEdit]);
 
-  // Usar Transformer sobre el Group, no sobre el <Text> individual
+  // Usar Transformer sobre el Text directamente
   useEffect(() => {
-    if (isSelected && trRef.current && groupRef.current && !isEditing) {
-      trRef.current.nodes([groupRef.current]);
+    if (isSelected && trRef.current && textRef.current && !isEditing) {
+      trRef.current.nodes([textRef.current]);
       trRef.current.getLayer().batchDraw();
     }
   }, [isSelected, isEditing]);
 
   // Medir tamaño del texto para el rectángulo de fondo
-  const [textSize, setTextSize] = useState({ width: 100, height: 40 });
+  const textAreaWidth = width || 200;
+  const textAreaHeight = height || 100;
 
-  useEffect(() => {
-    const stage = document.createElement("canvas");
-    const context = stage.getContext("2d");
-    context.font = `${fontSize || 16}px ${fontFamily || "Arial"}`;
-    const lines = value.split("\n");
-    const maxLineWidth = Math.max(
-      ...lines.map((line) => context.measureText(line).width)
-    );
-    const width = Math.max(maxLineWidth + 16, 80);
-    const height = Math.max(lines.length * (fontSize || 16) * 1.2 + 16, 28);
-    setTextSize({ width, height });
-  }, [value, fontSize, fontFamily]);
+  // Calcular propiedades del texto basadas en fontStyle
+  const getKonvaFontStyle = () => {
+    // En Konva, fontStyle combina peso y estilo
+    const weight =
+      fontStyle === "bold" || fontStyle?.includes("bold") ? "bold" : "normal";
+    const style =
+      fontStyle === "italic" || fontStyle?.includes("italic")
+        ? "italic"
+        : "normal";
+
+    if (weight === "bold" && style === "italic") return "bold italic";
+    if (weight === "bold") return "bold";
+    if (style === "italic") return "italic";
+    return "normal";
+  };
+
+  const getFontWeight = () => {
+    if (fontStyle === "bold" || fontStyle?.includes("bold")) return "bold";
+    return "normal";
+  };
+
+  const getFontStyleCSS = () => {
+    if (fontStyle === "italic" || fontStyle?.includes("italic"))
+      return "italic";
+    return "normal";
+  };
+
+  const getTextAlign = () => {
+    return align || "left";
+  };
 
   // Cuando termina resize/rotate
   const handleTransformEnd = (e) => {
-    const node = groupRef.current;
-    const textNode = textRef.current;
+    const node = textRef.current;
+    if (!node) return;
+
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
-    const newFontSize = Math.max(8, (fontSize || 16) * scaleY); // Escalado vertical para fontSize
-    const newWidth = Math.max(50, textSize.width * scaleX);
-    const newHeight = Math.max(20, textSize.height * scaleY);
+
+    // Para texto, solo cambiamos el área, NO el fontSize
+    const newWidth = Math.max(50, textAreaWidth * scaleX);
+    const newHeight = Math.max(20, textAreaHeight * scaleY);
+
+    // Resetear transformaciones ANTES de notificar cambios
+    node.scaleX(1);
+    node.scaleY(1);
 
     onTransformEnd &&
       onTransformEnd({
@@ -79,14 +115,9 @@ export default function TextShape({
           rotation: () => node.rotation(),
           scaleX: () => 1,
           scaleY: () => 1,
-          fontSize: () => newFontSize,
+          fontSize: () => fontSize || 16, // SIEMPRE mantener fontSize original
         },
       });
-
-    // Resetear transformaciones visuales para que la actualización sea visualmente correcta
-    node.scaleX(1);
-    node.scaleY(1);
-    node.rotation(0);
   };
 
   const handleEditEnd = () => {
@@ -98,70 +129,66 @@ export default function TextShape({
     <>
       {!isEditing ? (
         <>
-          <Group
-            ref={groupRef}
+          {/* Fondo del texto - separado y detrás */}
+          <Rect
             x={x}
             y={y}
+            width={textAreaWidth}
+            height={textAreaHeight}
+            fill={fill}
+            cornerRadius={6}
             rotation={rotation || 0}
-            draggable={isSelected}
-            onClick={onSelect}
-            onTap={onSelect}
-            onDblClick={() =>
-              isEditMode && tool === "select" && setIsEditing(true)
-            }
-            onDblTap={() =>
-              isEditMode && tool === "select" && setIsEditing(true)
-            }
-            onDragEnd={(e) => {
-              const node = e.target;
-              onTransformEnd &&
-                onTransformEnd({
-                  target: {
-                    id: () => id,
-                    x: () => node.x(),
-                    y: () => node.y(),
-                    width: () => textSize.width,
-                    height: () => textSize.height,
-                    rotation: () => node.rotation(),
-                    scaleX: () => 1,
-                    scaleY: () => 1,
-                    fontSize: () => fontSize,
-                  },
-                });
+            listening={false}
+          />
+
+          {/* Texto principal - maneja todos los eventos */}
+          <Text
+            id={id}
+            ref={textRef}
+            x={x}
+            y={y}
+            width={textAreaWidth}
+            height={textAreaHeight}
+            text={value}
+            fontSize={fontSize || 16}
+            fontFamily={fontFamily || "Arial"}
+            fontStyle={getKonvaFontStyle()}
+            fill={stroke || "#000"}
+            align={getTextAlign()}
+            verticalAlign="top"
+            padding={8}
+            rotation={rotation || 0}
+            draggable={draggable} // Usar prop de CanvasLayers
+            listening={listening} // Usar prop de CanvasLayers
+            onClick={onSelect} // Usar prop de CanvasLayers
+            onTap={onTap || onSelect} // Usar prop de CanvasLayers
+            onDblClick={(e) => {
+              // Primero ejecutar el handler de CanvasLayers si existe
+              if (onDoubleClick) {
+                onDoubleClick(e);
+              }
+              // Luego activar modo edición para TextShape
+              if (isEditMode && tool === "select") {
+                setIsEditing(true);
+              }
             }}
+            onDblTap={(e) => {
+              // Primero ejecutar el handler de CanvasLayers si existe
+              if (onDoubleClick) {
+                onDoubleClick(e);
+              }
+              // Luego activar modo edición para TextShape
+              if (isEditMode && tool === "select") {
+                setIsEditing(true);
+              }
+            }}
+            onDragEnd={onDragEnd} // Usar prop de CanvasLayers
+            onTransformEnd={handleTransformEnd}
             onContextMenu={onContextMenu}
-          >
-            {/* Rectángulo invisible para que Transformer pueda hacer resize */}
-            <Rect
-              width={textSize.width}
-              height={textSize.height}
-              fillEnabled={false}
-              strokeEnabled={false}
-              listening={true}
-              name="resize-box"
-            />
-            {/* Fondo visual */}
-            <Rect
-              width={textSize.width}
-              height={textSize.height}
-              fill={fill}
-              cornerRadius={6}
-              listening={false}
-            />
-            <Text
-              name="INPUT"
-              ref={textRef}
-              text={value}
-              fontSize={fontSize}
-              fontFamily={fontFamily}
-              fill={stroke}
-              width={textSize.width}
-              height={textSize.height}
-              align="left"
-              verticalAlign="middle"
-              onTransformEnd={handleTransformEnd}
-            />
-          </Group>
+            opacity={isInMultiSelection ? 0.8 : 1} // Para multi-selección
+            strokeWidth={isInMultiSelection ? 1 : 0} // Borde en multi-selección
+            stroke={isInMultiSelection ? "#4A90E2" : "transparent"}
+          />
 
           {/* Transformer */}
           {isSelected && !isEditing && (
@@ -202,17 +229,19 @@ export default function TextShape({
               top: 0,
               left: 0,
               transform: `translate(${x}px, ${y}px)`,
-              fontSize,
-              fontFamily,
-              color: stroke,
-              background: fill,
+              fontSize: fontSize || 16,
+              fontFamily: fontFamily || "Arial",
+              fontWeight: getFontWeight(),
+              fontStyle: getFontStyleCSS(),
+              textAlign: getTextAlign(),
+              color: stroke || "#000",
+              background: fill || "transparent",
               border: "1px solid #aaa",
-              padding: 4,
+              padding: 8,
               borderRadius: 4,
               resize: "none",
-              minWidth: 80,
-              minHeight: 28,
-              maxHeight: 300,
+              width: textAreaWidth,
+              height: textAreaHeight,
               overflow: "auto",
               zIndex: 20,
               outline: "none",

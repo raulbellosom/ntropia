@@ -50,27 +50,28 @@ export default function ShapeItem({
 
   // Handle reorder forward/back
   const onBringForward = () => {
-    // Obtener shapes ANTES del update optimista
+    // Obtener shapes de la capa ordenados como en la UI (mayor order primero)
     const shapes = useCanvasStore.getState().shapes;
-    const layerShapes = shapes.filter(
-      (s) => s.layerId === obj.layerId && !s._toDelete
-    );
-    const currentIndex = layerShapes.findIndex((s) => s.id === obj.id);
+    const layerShapes = shapes
+      .filter((s) => s.layerId === obj.layerId && !s._toDelete)
+      .sort((a, b) => b.order - a.order); // Ordenar igual que en UI
 
-    if (currentIndex < layerShapes.length - 1) {
-      const currentShape = layerShapes[currentIndex];
-      const nextShape = layerShapes[currentIndex + 1];
+    const currentUIIndex = layerShapes.findIndex((s) => s.id === obj.id);
+
+    if (currentUIIndex > 0) {
+      const currentShape = layerShapes[currentUIIndex];
+      const targetShape = layerShapes[currentUIIndex - 1];
 
       // Optimistic update
       useCanvasStore.getState().bringShapeForward(obj.id);
 
-      // Persistir ambas shapes con toda la información
+      // Intercambiar orders
       updateShape.mutate({
         id: currentShape.id,
         data: {
           name: currentShape.name,
           type: currentShape.type,
-          order: currentIndex + 1,
+          order: targetShape.order,
           layer_id: currentShape.layerId,
           workspace_id: currentShape.workspace_id,
           data: currentShape.props,
@@ -79,42 +80,43 @@ export default function ShapeItem({
       });
 
       updateShape.mutate({
-        id: nextShape.id,
+        id: targetShape.id,
         data: {
-          name: nextShape.name,
-          type: nextShape.type,
-          order: currentIndex,
-          layer_id: nextShape.layerId,
-          workspace_id: nextShape.workspace_id,
-          data: nextShape.props,
-          visible: nextShape.visible,
+          name: targetShape.name,
+          type: targetShape.type,
+          order: currentShape.order,
+          layer_id: targetShape.layerId,
+          workspace_id: targetShape.workspace_id,
+          data: targetShape.props,
+          visible: targetShape.visible,
         },
       });
     }
   };
 
   const onSendBackward = () => {
-    // Obtener shapes ANTES del update optimista
+    // Obtener shapes de la capa ordenados como en la UI (mayor order primero)
     const shapes = useCanvasStore.getState().shapes;
-    const layerShapes = shapes.filter(
-      (s) => s.layerId === obj.layerId && !s._toDelete
-    );
-    const currentIndex = layerShapes.findIndex((s) => s.id === obj.id);
+    const layerShapes = shapes
+      .filter((s) => s.layerId === obj.layerId && !s._toDelete)
+      .sort((a, b) => b.order - a.order); // Ordenar igual que en UI
 
-    if (currentIndex > 0) {
-      const currentShape = layerShapes[currentIndex];
-      const prevShape = layerShapes[currentIndex - 1];
+    const currentUIIndex = layerShapes.findIndex((s) => s.id === obj.id);
+
+    if (currentUIIndex < layerShapes.length - 1) {
+      const currentShape = layerShapes[currentUIIndex];
+      const targetShape = layerShapes[currentUIIndex + 1];
 
       // Optimistic update
       useCanvasStore.getState().sendShapeBackward(obj.id);
 
-      // Persistir ambas shapes con toda la información
+      // Intercambiar orders
       updateShape.mutate({
         id: currentShape.id,
         data: {
           name: currentShape.name,
           type: currentShape.type,
-          order: currentIndex - 1,
+          order: targetShape.order,
           layer_id: currentShape.layerId,
           workspace_id: currentShape.workspace_id,
           data: currentShape.props,
@@ -123,15 +125,15 @@ export default function ShapeItem({
       });
 
       updateShape.mutate({
-        id: prevShape.id,
+        id: targetShape.id,
         data: {
-          name: prevShape.name,
-          type: prevShape.type,
-          order: currentIndex,
-          layer_id: prevShape.layerId,
-          workspace_id: prevShape.workspace_id,
-          data: prevShape.props,
-          visible: prevShape.visible,
+          name: targetShape.name,
+          type: targetShape.type,
+          order: currentShape.order,
+          layer_id: targetShape.layerId,
+          workspace_id: targetShape.workspace_id,
+          data: targetShape.props,
+          visible: targetShape.visible,
         },
       });
     }
@@ -233,20 +235,32 @@ export default function ShapeItem({
           {isEditMode && !layerLocked && (
             <>
               <button
-                className="ml-2 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"
-                title="Subir"
+                className={classNames(
+                  "ml-2 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30 transition-colors",
+                  {
+                    "cursor-not-allowed": idx === 0,
+                  }
+                )}
+                title={idx === 0 ? "Ya está al frente" : "Traer al frente"}
                 onClick={onBringForward}
-                disabled={idx === objects.length - 1}
-              >
-                <ChevronDown size={18} />
-              </button>
-              <button
-                className="ml-1 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30"
-                title="Bajar"
-                onClick={onSendBackward}
                 disabled={idx === 0}
               >
-                <ChevronUp size={18} />
+                <ChevronUp size={16} />
+              </button>
+              <button
+                className={classNames(
+                  "ml-1 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30 transition-colors",
+                  {
+                    "cursor-not-allowed": idx === objects.length - 1,
+                  }
+                )}
+                title={
+                  idx === objects.length - 1 ? "Ya está atrás" : "Enviar atrás"
+                }
+                onClick={onSendBackward}
+                disabled={idx === objects.length - 1}
+              >
+                <ChevronDown size={16} />
               </button>
               <button
                 className="ml-2 text-red-400 hover:text-red-600"

@@ -20,6 +20,7 @@ import ContextMenu from "./ContextMenu";
 import SelectBox from "./SelectBox";
 import MultiTransformer from "./MultiTransformer";
 import MarkerModal from "../Marker/MarkerModal";
+import ShapePropertiesMenu from "./ShapePropertiesMenu";
 
 import { GRID_CELL_SIZE } from "../../utils/constants";
 import { useEditMode } from "../../hooks/useEditMode";
@@ -48,6 +49,8 @@ export default function CanvasStage() {
   const [dims, setDims] = useState({ width: 0, height: 0 });
   const [autoEditTextId, setAutoEditTextId] = useState(null);
   const [markerModalShapeId, setMarkerModalShapeId] = useState(null);
+  const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false);
+  const [propertiesPosition, setPropertiesPosition] = useState({ x: 0, y: 0 });
 
   // Store local
   const {
@@ -86,6 +89,89 @@ export default function CanvasStage() {
   const createShapeMut = useCreateShape();
   const updateShapeMut = useUpdateShape();
   const deleteShapeMut = useDeleteShape();
+
+  // Delete selected shapes (for keyboard shortcut) - Definir antes de usar
+  const deleteSelectedShapes = () => {
+    const { selectedShapeIds } = useCanvasStore.getState();
+    if (selectedShapeIds.length > 0) {
+      // 🚀 Eliminar del servidor cada shape seleccionada
+      selectedShapeIds.forEach((id) => {
+        deleteShapeMut.mutate(id);
+      });
+      // Limpiar selección local
+      clearSelection();
+    }
+  };
+
+  // Paste shape action - Definir antes de usar en shortcuts
+  const pasteShapeAction = () => {
+    const { clipboardShape } = useCanvasStore.getState();
+    if (!clipboardShape) return;
+
+    // Crear las props modificadas (sin ID para que se genere uno nuevo)
+    let newProps = { ...clipboardShape.props };
+
+    // Mover ligeramente para no superponer
+    newProps.x = (newProps.x || 0) + 30;
+    newProps.y = (newProps.y || 0) + 30;
+
+    // Si es línea o free, mover todos los puntos
+    if (Array.isArray(newProps.points)) {
+      newProps.points = newProps.points.map((point, index) =>
+        index % 2 === 0 ? point + 30 : point + 30
+      );
+    }
+
+    // 🚀 SOLO servidor - Sin update local
+    // Estructura correcta para createShapeMut
+    createShapeMut.mutate({
+      type: clipboardShape.type,
+      layer_id: clipboardShape.layerId,
+      workspace_id: workspaceId,
+      data: newProps, // Las props van directamente en data
+    });
+  };
+
+  // Replace shape action - Definir antes de usar
+  const replaceShapeAction = (id) => {
+    const { clipboardShape } = useCanvasStore.getState();
+    if (!clipboardShape) return;
+
+    const target = shapes.find((s) => s.id === id);
+    if (!target) return;
+
+    // Nueva figura con props del clipboard, pero manteniendo posición y medidas originales
+    let newProps = { ...clipboardShape.props };
+
+    // Mantener posición y medidas originales
+    newProps.x = target.props.x;
+    newProps.y = target.props.y;
+
+    // Tamaño
+    if ("width" in target.props) newProps.width = target.props.width;
+    if ("height" in target.props) newProps.height = target.props.height;
+    if ("radius" in target.props) newProps.radius = target.props.radius;
+    if ("points" in target.props) newProps.points = [...target.props.points];
+    if ("rotation" in target.props) newProps.rotation = target.props.rotation;
+    if ("scaleX" in target.props) newProps.scaleX = target.props.scaleX;
+    if ("scaleY" in target.props) newProps.scaleY = target.props.scaleY;
+
+    // Texto si aplica
+    if ("text" in target.props) newProps.text = target.props.text;
+
+    // Primero eliminar la shape original
+    deleteShapeMut.mutate(id);
+
+    // Luego crear la nueva shape con estructura correcta
+    setTimeout(() => {
+      createShapeMut.mutate({
+        type: clipboardShape.type,
+        layer_id: target.layerId,
+        workspace_id: workspaceId,
+        data: newProps, // Las props van directamente en data
+      });
+    }, 100); // Pequeño delay para asegurar que la eliminación se procese primero
+  };
 
   // Context menu
   const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
@@ -132,10 +218,10 @@ export default function CanvasStage() {
     selectedShapeIds,
     clearSelection,
     copyShape,
-    pasteShape,
+    pasteShape: pasteShapeAction,
     toggleGrid: useCanvasStore.getState().toggleGrid,
     toggleLayersPanel: useCanvasStore.getState().toggleLayersPanel,
-    removeSelectedShapes,
+    removeSelectedShapes: deleteSelectedShapes, // 👈 Usar la nueva función
     tool,
   });
 
@@ -255,15 +341,24 @@ export default function CanvasStage() {
   const handleStageMouseDown = (e) => {
     if (contextMenu) hideContextMenu();
     if (!isEditMode && tool !== "hand") return;
+
     const isShape =
       e.target.getClassName && e.target.getClassName() !== "Group";
-    if (tool === "select" && isShape) return;
     const isBackground =
       e.target === e.target.getStage() || e.target.id() === "background-rect";
+
+    // Si es herramienta select y hacemos clic en fondo, limpiar selección
     if (tool === "select" && isBackground) {
       clearSelection();
       selectStart();
-    } else if (tool !== "select" && isEditMode) {
+      return;
+    }
+
+    // Si es herramienta select y hacemos clic en shape, no hacer nada (lo maneja el shape)
+    if (tool === "select" && isShape) return;
+
+    // Si no es herramienta select y estamos en modo edición, empezar a dibujar
+    if (tool !== "select" && isEditMode) {
       drawMouseDown(e);
     }
   };
@@ -377,8 +472,155 @@ export default function CanvasStage() {
 
   // Shape double click
   const handleShapeDoubleClick = (id) => {
-    setSelectedShape(id);
+    const shape = shapes.find((s) => s.id === id);
+    if (shape?.type === "marker") {
+      // Para markers, abrir el modal
+      setMarkerModalShapeId(id);
+    } else {
+      // Para otras shapes, solo seleccionar
+      setSelectedShape(id);
+    }
   };
+
+  // Open properties menu
+  const openPropertiesMenu = (event) => {
+    const selectedShapes =
+      selectedShapeIds.length > 0
+        ? selectedShapeIds
+        : selectedShapeId
+        ? [selectedShapeId]
+        : [];
+
+    if (selectedShapes.length === 0) return;
+
+    // Get position from touch event or mouse event
+    let clientX, clientY;
+    if (event.touches && event.touches[0]) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+
+    // Calcular posición inteligente para desktop
+    let x = clientX;
+    let y = clientY;
+
+    if (window.innerWidth >= 768) {
+      // Estimación del tamaño del menú (será ajustado después)
+      const menuWidth = 280;
+      const menuHeight = 400;
+
+      // Ajustar para que no se salga de pantalla
+      if (x + menuWidth > window.innerWidth - 20) {
+        x = window.innerWidth - menuWidth - 20;
+      }
+      if (x < 20) {
+        x = 20;
+      }
+
+      if (y + menuHeight > window.innerHeight - 20) {
+        y = window.innerHeight - menuHeight - 20;
+      }
+      if (y < 20) {
+        y = 20;
+      }
+    }
+
+    setPropertiesPosition({ x, y });
+    setPropertiesMenuOpen(true);
+    hideContextMenu(); // Close context menu if open
+  };
+
+  // Close properties menu
+  const closePropertiesMenu = () => {
+    setPropertiesMenuOpen(false);
+  };
+
+  // Handle long press for mobile context menu
+  useEffect(() => {
+    let touchTimer = null;
+
+    const handleTouchStart = (e) => {
+      // Solo activar long press si estamos en modo select
+      if (!isEditMode || tool !== "select") return;
+
+      // Clear any existing timer
+      if (touchTimer) {
+        clearTimeout(touchTimer);
+      }
+
+      // Solo activar si tocamos una shape existente
+      const touch = e.touches[0];
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const pointerPosition = stage.getPointerPosition();
+      if (!pointerPosition) return;
+
+      const target = stage.getIntersection(pointerPosition);
+
+      // Solo iniciar timer si tocamos una shape (no el fondo)
+      if (
+        target &&
+        target.getClassName &&
+        target.getClassName() !== "Group" &&
+        target.id()
+      ) {
+        // Start long press timer (500ms)
+        touchTimer = setTimeout(() => {
+          const fakeEvent = {
+            evt: {
+              button: 2, // Right click
+              clientX: touch.clientX,
+              clientY: touch.clientY,
+              preventDefault: () => {},
+            },
+          };
+
+          showContextMenu(fakeEvent);
+          // Haptic feedback if available
+          if (navigator.vibrate) {
+            navigator.vibrate(50);
+          }
+        }, 500);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (touchTimer) {
+        clearTimeout(touchTimer);
+        touchTimer = null;
+      }
+    };
+
+    const handleTouchMove = () => {
+      if (touchTimer) {
+        clearTimeout(touchTimer);
+        touchTimer = null;
+      }
+    };
+
+    const stage = stageRef.current;
+    if (stage) {
+      const container = stage.container();
+      // Solo agregar listeners si estamos en modo select
+      if (isEditMode && tool === "select") {
+        container.addEventListener("touchstart", handleTouchStart, {
+          passive: false,
+        });
+        container.addEventListener("touchend", handleTouchEnd);
+        container.addEventListener("touchmove", handleTouchMove);
+
+        return () => {
+          container.removeEventListener("touchstart", handleTouchStart);
+          container.removeEventListener("touchend", handleTouchEnd);
+          container.removeEventListener("touchmove", handleTouchMove);
+        };
+      }
+    }
+  }, [isEditMode, tool, showContextMenu]); // Agregar tool como dependencia
 
   // Context menu actions
   const deleteViaMenu = (id) => {
@@ -419,7 +661,15 @@ export default function CanvasStage() {
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
         onMouseUp={handleStageMouseUp}
+        onTouchStart={handleStageMouseDown} // Touch equivalente a mouse down
+        onTouchMove={handleStageMouseMove} // Touch equivalente a mouse move
+        onTouchEnd={handleStageMouseUp} // Touch equivalente a mouse up
         onDblClick={(e) => {
+          const id = e.target.id();
+          if (id) handleShapeDoubleClick(id);
+        }}
+        onDblTap={(e) => {
+          // Touch equivalente a double click
           const id = e.target.id();
           if (id) handleShapeDoubleClick(id);
         }}
@@ -495,9 +745,10 @@ export default function CanvasStage() {
         onBringForward={bringForward}
         onSendBackward={sendBackward}
         onCopy={copyShape}
-        onPaste={pasteShape}
+        onPaste={pasteShapeAction}
         onDelete={deleteViaMenu}
-        onReplace={replaceShape}
+        onReplace={replaceShapeAction}
+        onOpenProperties={openPropertiesMenu}
         clipboardShape={useCanvasStore.getState().clipboardShape}
         onClose={hideContextMenu}
       />
@@ -506,6 +757,32 @@ export default function CanvasStage() {
         <MarkerModal
           shapeId={markerModalShapeId}
           onClose={() => setMarkerModalShapeId(null)}
+        />
+      )}
+
+      {propertiesMenuOpen && (
+        <ShapePropertiesMenu
+          shapes={shapes}
+          selectedShapeIds={
+            selectedShapeIds.length > 0
+              ? selectedShapeIds
+              : selectedShapeId
+              ? [selectedShapeId]
+              : []
+          }
+          position={propertiesPosition}
+          onClose={closePropertiesMenu}
+          onUpdate={(shapeId, properties) => {
+            const shape = shapes.find((s) => s.id === shapeId);
+            if (!shape) return;
+
+            updateShapeMut.mutate({
+              id: shapeId,
+              data: {
+                data: { ...shape.props, ...properties },
+              },
+            });
+          }}
         />
       )}
     </div>

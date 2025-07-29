@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Crown,
   Shield,
@@ -14,6 +15,7 @@ import {
   UserPlus,
   X,
   Save,
+  Clock,
 } from "lucide-react";
 import ModalWrapper from "../common/ModalWrapper";
 import { useUpdateWorkspace } from "../../hooks/useWorkspaces";
@@ -23,7 +25,12 @@ import {
   useUpdateWorkspaceMember,
 } from "../../hooks/useWorkspaceMembers";
 import useAuthStore from "../../store/useAuthStore";
-import { useCreateInvitation } from "../../hooks/useInvitations";
+import {
+  useCreateInvitation,
+  useValidateInvitation,
+  useWorkspaceInvitations,
+  useDeleteInvitation,
+} from "../../hooks/useInvitations";
 
 export default function WorkspaceConfigModal({
   isOpen,
@@ -31,20 +38,23 @@ export default function WorkspaceConfigModal({
   onClose,
   onSuccess,
 }) {
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const { data: members, isLoading: loadingMembers } = useWorkspaceMembers(
     workspace?.id
   );
+  const { data: invitations = [] } = useWorkspaceInvitations(workspace?.id);
   const deleteMember = useDeleteWorkspaceMember();
   const updateMemberRole = useUpdateWorkspaceMember();
   const createInvitation = useCreateInvitation();
+  const validateInvitation = useValidateInvitation();
+  const deleteInvitation = useDeleteInvitation();
   const updateWorkspace = useUpdateWorkspace();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("viewer");
   const [loading, setLoading] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState(null);
@@ -81,21 +91,53 @@ export default function WorkspaceConfigModal({
       toast.error("Correo inválido");
       return;
     }
+
     setInviting(true);
     try {
+      // Primero validar si se puede enviar la invitación
+      await validateInvitation.mutateAsync({
+        email: inviteEmail.trim(),
+        workspace_id: workspace.id,
+      });
+
+      // Si la validación pasa, crear la invitación
       await createInvitation.mutateAsync({
-        email: inviteEmail,
+        email: inviteEmail.trim(),
         workspace_id: workspace.id,
         invited_by: user.id,
-        role: inviteRole,
       });
+
       toast.success("Invitación enviada");
       setInviteEmail("");
+      // Invalidar las notificaciones para que se actualicen inmediatamente
+      queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
       onSuccess?.();
-    } catch {
-      toast.error("Error al invitar miembro");
+    } catch (error) {
+      // Manejar errores específicos de validación
+      const errorData = error.response?.data;
+      if (errorData?.code === "ALREADY_MEMBER") {
+        toast.error("Este usuario ya es miembro del workspace");
+      } else if (errorData?.code === "PENDING_INVITATION") {
+        toast.error("Ya existe una invitación pendiente para este usuario");
+      } else if (errorData?.code === "OWNER_EMAIL") {
+        toast.error("No puedes invitarte a ti mismo");
+      } else {
+        toast.error("Error al enviar la invitación");
+      }
     }
     setInviting(false);
+  };
+
+  const handleCancelInvitation = async (invitationId) => {
+    try {
+      await deleteInvitation.mutateAsync(invitationId);
+      toast.success("Invitación cancelada");
+      // Invalidar las notificaciones para que se actualicen inmediatamente
+      queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
+      onSuccess?.();
+    } catch {
+      toast.error("Error al cancelar la invitación");
+    }
   };
 
   const handleConfirmDeleteMember = async () => {
@@ -230,7 +272,7 @@ export default function WorkspaceConfigModal({
             <UserPlus className="w-4 h-4" /> Invitar Miembro
           </h2>
           <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-8">
+            <div className="col-span-9">
               <label className="text-sm font-medium">Correo electrónico</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -243,27 +285,15 @@ export default function WorkspaceConfigModal({
                 />
               </div>
             </div>
-            {/* <div className="col-span-6 md:col-span-3">
-              <label className="text-sm font-medium">Rol</label>
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-              >
-                <option value="viewer">Visualizador</option>
-                <option value="editor">Editor</option>
-                <option value="admin">Administrador</option>
-              </select>
-            </div> */}
-            <div className="col-span-4 flex items-end">
+
+            <div className="col-span-3 flex items-end">
               <button
                 onClick={handleInvite}
-                className="w-full bg-blue-600  hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
+                disabled={inviting}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2"
               >
-                <span>
-                  <UserPlus className="h-4 w-4 text-white" />
-                </span>
-                Invitar
+                <UserPlus className="h-4 w-4" />
+                {inviting ? "Enviando..." : "Invitar"}
               </button>
             </div>
           </div>
@@ -271,6 +301,54 @@ export default function WorkspaceConfigModal({
             Se enviará una invitación al correo especificado
           </p>
         </div>
+
+        {/* Invitaciones pendientes */}
+        {invitations.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Clock className="w-4 h-4" /> Invitaciones Pendientes
+            </h2>
+            <div className="space-y-3">
+              {invitations
+                .filter((inv) => inv.status === "pending")
+                .map((invitation) => (
+                  <div
+                    key={invitation.id}
+                    className="flex items-center justify-between p-3 rounded-lg border border-orange-200 bg-orange-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">
+                          {invitation.email}
+                        </p>
+                        <p className="text-xs text-orange-600 font-medium">
+                          Pendiente • Invitado el{" "}
+                          {new Date(
+                            invitation.date_created
+                          ).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                        Pendiente
+                      </span>
+                      <button
+                        onClick={() => handleCancelInvitation(invitation.id)}
+                        className="text-orange-600 hover:text-red-600 transition-colors"
+                        title="Cancelar invitación"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Miembros actuales */}
         <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">

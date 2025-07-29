@@ -267,16 +267,16 @@ export default function Toolbar() {
               </motion.div>
 
               {/* Separador */}
-              <motion.div
+              {/* <motion.div
                 variants={itemVariants}
                 className={classNames(
                   "border-slate-500/50",
                   "border-t w-8 my-2"
                 )}
-              />
+              /> */}
 
               {/* Paletas de color */}
-              <motion.div
+              {/* <motion.div
                 variants={itemVariants}
                 className={classNames("flex gap-3 items-center", "flex-col")}
               >
@@ -298,7 +298,7 @@ export default function Toolbar() {
                     vertical={!isMobile}
                   />
                 </motion.div>
-              </motion.div>
+              </motion.div> */}
 
               {/* Separador */}
               <motion.div

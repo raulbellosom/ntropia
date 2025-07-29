@@ -16,6 +16,7 @@ import { useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import clsx from "clsx";
 import NtropiaLogo from "../components/Logo/NtropiaLogo";
+import NotificationsDropdown from "../components/common/NotificationsDropdown";
 
 const navLinks = [
   { to: "/dashboard", label: "Inicio", icon: Home },
@@ -88,14 +89,8 @@ export default function MainLayout() {
           </nav>
           {/* User info */}
           <div className="flex items-center gap-4">
-            {/* Bell icon (notificaciones) */}
-            <button
-              className="relative p-2 rounded-lg hover:bg-white/10 transition"
-              title="Notificaciones"
-              onClick={() => toast("¡Sin notificaciones nuevas! 🎉")}
-            >
-              <Bell className="w-6 h-6 text-[#2563eb]" />
-            </button>
+            {/* Notificaciones */}
+            <NotificationsDropdown />
             {/* Avatar + menu */}
             <motion.div whileHover={{ scale: 1.06 }} className="group relative">
               <button
