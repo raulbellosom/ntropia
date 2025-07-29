@@ -108,8 +108,8 @@ export default function MainLayout() {
               >
                 <span className="inline-block h-10 w-10 rounded-full overflow-hidden bg-[#e5e9f1] border-2 border-[#2563eb] shadow">
                   {user?.avatar ? (
-                    <img
-                      src={getAvatarUrl(user.avatar)}
+                    <ImageWithDirectusUrl
+                      src={user.avatar}
                       alt="avatar"
                       className="w-full h-full object-cover"
                     />
