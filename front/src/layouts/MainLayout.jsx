@@ -1,16 +1,7 @@
 // src\layouts\MainLayout.jsx
 import { Outlet, useNavigate, NavLink } from "react-router-dom";
 import useAuthStore from "../store/useAuthStore";
-import {
-  LayoutGrid,
-  UserCircle,
-  LogOut,
-  Menu,
-  X,
-  Bell,
-  Home,
-  Users,
-} from "lucide-react";
+import { LayoutGrid, UserCircle, LogOut, Menu, X, Home } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import toast, { Toaster } from "react-hot-toast";

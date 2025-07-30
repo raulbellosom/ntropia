@@ -6,9 +6,11 @@ import ModalWrapper from "./ModalWrapper";
 import useAuthStore from "../../store/useAuthStore";
 import { useUpdateProfile, useRequestPasswordReset } from "../../hooks/useAuth";
 import { useUploadFile } from "../../hooks/useFiles";
+import { useDirectusImage } from "../../hooks/useDirectusImage";
 
 export default function EditProfileModal({ isOpen, onClose }) {
   const user = useAuthStore((s) => s.user);
+  const imageUrl = useDirectusImage(user?.avatar || "");
   const [activeTab, setActiveTab] = useState("profile");
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -34,11 +36,7 @@ export default function EditProfileModal({ isOpen, onClose }) {
         last_name: user.last_name || "",
         email: user.email || "",
       });
-      setAvatarPreview(
-        user.avatar
-          ? `${import.meta.env.VITE_API_URL}/assets/${user.avatar}`
-          : null
-      );
+      setAvatarPreview(imageUrl || null);
     }
   }, [isOpen, user, profileForm]);
 
@@ -159,9 +157,9 @@ export default function EditProfileModal({ isOpen, onClose }) {
             <div className="flex flex-col items-center space-y-4">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full border-4 border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center">
-                  {avatarPreview || user?.avatar ? (
+                  {avatarPreview || imageUrl ? (
                     <img
-                      src={avatarPreview || user?.avatar}
+                      src={avatarPreview || imageUrl}
                       alt="Avatar"
                       className="w-full h-full object-cover"
                     />
