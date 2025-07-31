@@ -1,15 +1,15 @@
 // src/hooks/useSocketNotifications.js
-import { useEffect, useRef } from "react";
-import { io } from "socket.io-client";
+import { useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import useAuthStore from "../store/useAuthStore";
 import useNotificationStore from "../store/useNotificationStore";
+import { useSocket } from "./useSocket";
 
 export function useSocketNotifications() {
   const user = useAuthStore((s) => s.user);
-  const socketRef = useRef(null);
+  const socket = useSocket();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -22,20 +22,10 @@ export function useSocketNotifications() {
   } = useNotificationStore();
 
   useEffect(() => {
-    if (!user?.email) return;
-
-    // Conectarse al servidor socket
-    socketRef.current = io(import.meta.env.VITE_SOCKET_URL, {
-      transports: ["websocket"],
-    });
-
-    socketRef.current.on("connect", () => {
-      socketRef.current.emit("join", user.email); // Unirse a sala privada
-      console.log("✅ Socket conectado:", socketRef.current.id);
-    });
+    if (!user?.email || !socket) return;
 
     // 1. Evento de nueva invitación (toast + store)
-    socketRef.current.on("new-invitation", (data) => {
+    const handleNewInvitation = (data) => {
       console.log("📨 Nueva invitación recibida:", data);
 
       // Agregar al store
@@ -81,11 +71,11 @@ export function useSocketNotifications() {
 
       // Invalidar queries de invitaciones
       queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
-    });
+    };
 
     // 2. Evento de invitación creada (para dropdown/modal de workspace)
-    socketRef.current.on("invitation-created", (data) => {
-      console.log("📩 Invitación creada en workspace:", data);
+    const handleInvitationCreated = (data) => {
+      console.log("📩 useSocketNotifications - Invitación creada:", data);
 
       // Actualizar cache de invitaciones del workspace
       queryClient.setQueryData(
@@ -95,10 +85,15 @@ export function useSocketNotifications() {
           return [data.invitation, ...old];
         }
       );
-    });
+
+      // Invalidar query para forzar re-render en cualquier modal abierto
+      queryClient.invalidateQueries({
+        queryKey: ["workspaceInvitations", data.workspaceId],
+      });
+    };
 
     // 3. Evento de invitación actualizada
-    socketRef.current.on("invitation-updated", (data) => {
+    const handleInvitationUpdated = (data) => {
       console.log("🔄 Invitación actualizada:", data);
 
       // Actualizar store local si es para este usuario
@@ -125,15 +120,15 @@ export function useSocketNotifications() {
 
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
-    });
+    };
 
     // 4. Evento de invitación eliminada
-    socketRef.current.on("invitation-deleted", (data) => {
-      console.log("🗑️ Invitación eliminada:", data);
+    const handleInvitationDeleted = (data) => {
+      console.log("🗑️ useSocketNotifications - Invitación eliminada:", data);
 
       // Remover del store local
       console.log(
-        "📝 Removiendo notificación con invitationId:",
+        "📝 useSocketNotifications - Removiendo notificación con invitationId:",
         data.invitationId
       );
       removeNotificationByInvitationId(data.invitationId);
@@ -144,7 +139,7 @@ export function useSocketNotifications() {
         (old) => {
           if (!old) return [];
           console.log(
-            "📝 Actualizando cache de workspaceInvitations, removiendo:",
+            "📝 useSocketNotifications - Actualizando cache de workspaceInvitations, removiendo:",
             data.invitationId
           );
           return old.filter((inv) => inv.id !== data.invitationId);
@@ -156,8 +151,10 @@ export function useSocketNotifications() {
       queryClient.invalidateQueries({
         queryKey: ["workspaceInvitations", data.workspaceId],
       });
-    }); // 5. Evento de miembro agregado al workspace
-    socketRef.current.on("workspace-member-added", (data) => {
+    };
+
+    // 5. Evento de miembro agregado al workspace
+    const handleWorkspaceMemberAdded = (data) => {
       console.log("👥 Nuevo miembro agregado:", data);
 
       // Actualizar cache de miembros del workspace
@@ -180,10 +177,10 @@ export function useSocketNotifications() {
           }
         );
       }
-    });
+    };
 
     // 6. Evento de miembro actualizado
-    socketRef.current.on("workspace-member-updated", (data) => {
+    const handleWorkspaceMemberUpdated = (data) => {
       console.log("🔄 Miembro actualizado:", data);
 
       // Actualizar cache de miembros del workspace
@@ -198,10 +195,10 @@ export function useSocketNotifications() {
           );
         }
       );
-    });
+    };
 
     // 7. Evento de miembro eliminado
-    socketRef.current.on("workspace-member-removed", (data) => {
+    const handleWorkspaceMemberRemoved = (data) => {
       console.log("❌ Miembro eliminado:", data);
 
       // Actualizar cache de miembros del workspace
@@ -224,13 +221,30 @@ export function useSocketNotifications() {
           }
         );
       }
-    });
+    };
 
+    // Suscribirse a eventos
+    socket.on("new-invitation", handleNewInvitation);
+    socket.on("invitation-created", handleInvitationCreated);
+    socket.on("invitation-updated", handleInvitationUpdated);
+    socket.on("invitation-deleted", handleInvitationDeleted);
+    socket.on("workspace-member-added", handleWorkspaceMemberAdded);
+    socket.on("workspace-member-updated", handleWorkspaceMemberUpdated);
+    socket.on("workspace-member-removed", handleWorkspaceMemberRemoved);
+
+    // Cleanup al desmontar
     return () => {
-      socketRef.current?.disconnect();
+      socket.off("new-invitation", handleNewInvitation);
+      socket.off("invitation-created", handleInvitationCreated);
+      socket.off("invitation-updated", handleInvitationUpdated);
+      socket.off("invitation-deleted", handleInvitationDeleted);
+      socket.off("workspace-member-added", handleWorkspaceMemberAdded);
+      socket.off("workspace-member-updated", handleWorkspaceMemberUpdated);
+      socket.off("workspace-member-removed", handleWorkspaceMemberRemoved);
     };
   }, [
     user,
+    socket,
     navigate,
     queryClient,
     addNotification,
@@ -239,5 +253,5 @@ export function useSocketNotifications() {
     removeNotificationByInvitationId,
   ]);
 
-  return socketRef;
+  return socket;
 }

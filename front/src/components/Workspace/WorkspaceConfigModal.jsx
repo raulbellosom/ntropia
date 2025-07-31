@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { io } from "socket.io-client";
 import {
   Crown,
   Shield,
@@ -33,6 +32,7 @@ import {
   useWorkspaceInvitations,
   useDeleteInvitation,
 } from "../../hooks/useInvitations";
+import { useSocket } from "../../hooks/useSocket";
 
 export default function WorkspaceConfigModal({
   isOpen,
@@ -42,7 +42,7 @@ export default function WorkspaceConfigModal({
 }) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const socketRef = useRef(null);
+  const socket = useSocket();
   const { data: members, isLoading: loadingMembers } = useWorkspaceMembers(
     workspace?.id
   );
@@ -71,138 +71,19 @@ export default function WorkspaceConfigModal({
 
   // Socket subscription for workspace events
   useEffect(() => {
-    if (!isOpen || !workspace?.id || !user?.email) return;
+    if (!isOpen || !workspace?.id || !user?.email || !socket) return;
 
-    // Conectar al socket si no está conectado
-    if (!socketRef.current) {
-      socketRef.current = io(import.meta.env.VITE_SOCKET_URL, {
-        transports: ["websocket"],
-      });
-    }
+    // Unirse a la sala del workspace (formato: "workspace:ID")
+    socket.emit("join-workspace", workspace.id);
+    console.log(
+      `🏠 Modal - Subscrito a eventos del workspace: ${workspace.id}`
+    );
 
-    const socket = socketRef.current;
-
-    socket.on("connect", () => {
-      // Unirse a la sala del workspace
-      socket.emit("join-workspace", workspace.id);
-      console.log(`🏠 Subscrito a eventos del workspace: ${workspace.id}`);
-    });
-
-    // Event listeners para eventos del workspace
-    const handleInvitationCreated = (data) => {
-      console.log("📩 Invitación creada en workspace:", data);
-      if (data.workspaceId === workspace.id) {
-        queryClient.setQueryData(
-          ["workspaceInvitations", workspace.id],
-          (old) => {
-            if (!old) return [data.invitation];
-            return [data.invitation, ...old];
-          }
-        );
-      }
-    };
-
-    const handleInvitationUpdated = (data) => {
-      console.log("🔄 Invitación actualizada:", data);
-      if (data.workspaceId === workspace.id) {
-        queryClient.setQueryData(
-          ["workspaceInvitations", workspace.id],
-          (old) => {
-            if (!old) return [];
-            return old.map((inv) =>
-              inv.id === data.invitationId
-                ? { ...inv, ...data.invitation }
-                : inv
-            );
-          }
-        );
-      }
-    };
-
-    const handleInvitationDeleted = (data) => {
-      console.log("🗑️ Invitación eliminada:", data);
-      if (data.workspaceId === workspace.id) {
-        queryClient.setQueryData(
-          ["workspaceInvitations", workspace.id],
-          (old) => {
-            if (!old) return [];
-            return old.filter((inv) => inv.id !== data.invitationId);
-          }
-        );
-      }
-    };
-
-    const handleWorkspaceMemberAdded = (data) => {
-      console.log("👥 Nuevo miembro agregado:", data);
-      if (data.workspaceId === workspace.id) {
-        queryClient.setQueryData(["workspaceMembers", workspace.id], (old) => {
-          if (!old) return [data.member];
-          return [data.member, ...old];
-        });
-
-        // También remover la invitación correspondiente si existe
-        queryClient.setQueryData(
-          ["workspaceInvitations", workspace.id],
-          (old) => {
-            if (!old) return [];
-            return old.filter((inv) => inv.email !== data.member.email);
-          }
-        );
-      }
-    };
-
-    const handleWorkspaceMemberUpdated = (data) => {
-      console.log("🔄 Miembro actualizado:", data);
-      if (data.workspaceId === workspace.id) {
-        queryClient.setQueryData(["workspaceMembers", workspace.id], (old) => {
-          if (!old) return [];
-          return old.map((member) =>
-            member.id === data.member.id
-              ? { ...member, ...data.member }
-              : member
-          );
-        });
-      }
-    };
-
-    const handleWorkspaceMemberRemoved = (data) => {
-      console.log("❌ Miembro eliminado:", data);
-      if (data.workspaceId === workspace.id) {
-        queryClient.setQueryData(["workspaceMembers", workspace.id], (old) => {
-          if (!old) return [];
-          return old.filter((member) => member.id !== data.memberId);
-        });
-      }
-    };
-
-    // Suscribirse a eventos
-    socket.on("invitation-created", handleInvitationCreated);
-    socket.on("invitation-updated", handleInvitationUpdated);
-    socket.on("invitation-deleted", handleInvitationDeleted);
-    socket.on("workspace-member-added", handleWorkspaceMemberAdded);
-    socket.on("workspace-member-updated", handleWorkspaceMemberUpdated);
-    socket.on("workspace-member-removed", handleWorkspaceMemberRemoved);
-
-    // Cleanup
+    // Solo necesitamos limpiar la suscripción cuando se cierre
     return () => {
-      if (socket) {
-        socket.off("invitation-created", handleInvitationCreated);
-        socket.off("invitation-updated", handleInvitationUpdated);
-        socket.off("invitation-deleted", handleInvitationDeleted);
-        socket.off("workspace-member-added", handleWorkspaceMemberAdded);
-        socket.off("workspace-member-updated", handleWorkspaceMemberUpdated);
-        socket.off("workspace-member-removed", handleWorkspaceMemberRemoved);
-      }
+      console.log(`🏠 Modal - Desuscribiendo del workspace: ${workspace.id}`);
     };
-  }, [isOpen, workspace?.id, user?.email, queryClient]);
-
-  // Cleanup socket when modal closes
-  useEffect(() => {
-    if (!isOpen && socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
-  }, [isOpen]);
+  }, [isOpen, workspace?.id, user?.email, socket]);
 
   const handleSave = async () => {
     setLoading(true);

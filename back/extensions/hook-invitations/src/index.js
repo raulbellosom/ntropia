@@ -140,27 +140,6 @@ export default ({ filter, action }) => {
             </table>
           `,
         });
-        try {
-          const socketUrl =
-            process.env.SOCKET_SERVER_URL || "http://localhost:4010";
-          console.log("🔗 [DEBUG] Socket URL:", socketUrl);
-          await fetch(`${socketUrl}/emit`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: payload.email,
-              type: "new-invitation",
-              data: {
-                workspaceName,
-                inviterName,
-                token: payload.token,
-              },
-            }),
-          });
-          console.log("📤 Notificación enviada a socket-server");
-        } catch (error) {
-          console.error("❌ Error enviando a socket-server:", error.message);
-        }
         console.log("✅ Correo enviado a", payload.email);
       } catch (err) {
         console.error("❌ Error enviando correo:", err);
