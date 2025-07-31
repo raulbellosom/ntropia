@@ -260,12 +260,13 @@ export default (router, { database, services }) => {
         "workspace-member-removed",
         {
           workspaceId: workspaceId,
-          removedMember: memberToDelete,
+          memberId: memberToDelete.id,
+          memberEmail: memberToDelete.email,
+          workspaceName: workspace.name,
         },
         memberToDelete.email, // to - para notificar al usuario removido
         workspaceId // workspaceId - para notificar al workspace
       );
-
       res.json({
         message: "Miembro eliminado correctamente",
         data: memberToDelete,

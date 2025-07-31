@@ -305,6 +305,7 @@ export default ({ filter, action }) => {
             "i.workspace_id",
             "i.status",
             "i.date_updated",
+            database.raw("COALESCE(i.viewed, false) as viewed"), // Default to false if viewed field doesn't exist
             "u.first_name as inviter_first_name",
             "u.last_name as inviter_last_name",
             "u.email as inviter_email"
@@ -317,11 +318,13 @@ export default ({ filter, action }) => {
             "invitation-updated",
             {
               workspaceId: invitation.workspace_id,
+              invitationId: invitation.id,
               invitation: {
                 id: invitation.id,
                 email: invitation.email,
                 status: invitation.status,
                 date_updated: invitation.date_updated,
+                viewed: invitation.viewed,
                 invited_by: {
                   first_name: invitation.inviter_first_name,
                   last_name: invitation.inviter_last_name,

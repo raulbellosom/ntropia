@@ -52,6 +52,7 @@ export default (router, { database }) => {
           "i.token",
           "i.status",
           "i.invited_by",
+          database.raw("COALESCE(i.viewed, false) as viewed"), // Default to false if viewed field doesn't exist
           "u.first_name    AS inviter_first_name",
           "u.last_name     AS inviter_last_name",
           "u.email         AS inviter_email",
@@ -79,6 +80,7 @@ export default (router, { database }) => {
           email: inv.email,
           token: inv.token,
           status: inv.status,
+          viewed: inv.viewed,
           invited_by: {
             id: inv.invited_by,
             first_name: inv.inviter_first_name,
@@ -327,6 +329,7 @@ export default (router, { database }) => {
           "i.status",
           "i.date_created",
           "i.date_updated",
+          database.raw("COALESCE(i.viewed, false) as viewed"), // Default to false if viewed field doesn't exist
           "u.first_name AS inviter_first_name",
           "u.last_name AS inviter_last_name",
           "u.email AS inviter_email"
@@ -343,6 +346,7 @@ export default (router, { database }) => {
           status: inv.status,
           date_created: inv.date_created,
           date_updated: inv.date_updated,
+          viewed: inv.viewed,
           invited_by: {
             first_name: inv.inviter_first_name,
             last_name: inv.inviter_last_name,

@@ -1,23 +1,30 @@
 // src/components/common/NotificationsDropdown.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bell, Eye, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../../store/useAuthStore";
+import useNotificationStore from "../../store/useNotificationStore";
 import api from "../../services/api";
 
 export default function NotificationsDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const lastInvitationsRef = useRef(null);
 
-  // Hook para obtener invitaciones pendientes del usuario actual
+  // Estado de notificaciones desde Zustand store
   const {
-    data: invitations = [],
-    isLoading,
-    refetch,
-  } = useQuery({
+    notifications,
+    unreadCount,
+    syncWithInvitations,
+    markAsRead,
+    updateNotification,
+  } = useNotificationStore();
+
+  // Hook para obtener invitaciones pendientes del usuario actual (solo para inicialización)
+  const { data: invitations = [], isLoading } = useQuery({
     queryKey: ["pendingInvitations", user?.email],
     queryFn: async () => {
       if (!user?.email) return [];
@@ -28,29 +35,72 @@ export default function NotificationsDropdown() {
       return response.data.data || [];
     },
     enabled: !!user?.email,
-    refetchInterval: (data) => {
-      // Solo hacer polling si el dropdown está abierto o hay invitaciones
-      if (!isOpen && (!data || data.length === 0)) return false;
-      // Si hay invitaciones pendientes, refrescar más frecuentemente (15s)
-      // Si no hay invitaciones, refrescar menos frecuentemente (60s)
-      return data && data.length > 0 ? 15000 : 60000;
-    },
-    staleTime: 10000, // Los datos se consideran frescos por 10 segundos
+    refetchOnWindowFocus: false, // Desactivar refetch automático
+    refetchOnReconnect: false, // Desactivar refetch al reconectar
+    refetchInterval: false, // Desactivar polling - solo tiempo real
+    staleTime: Infinity, // Los datos nunca se consideran obsoletos - solo tiempo real
   });
 
-  // Refrescar cuando se abre el dropdown
+  // Sincronizar invitaciones con el store cuando cambien
   useEffect(() => {
-    if (isOpen) {
-      refetch();
+    if (!invitations || !Array.isArray(invitations)) return;
+
+    // Comparar por contenido para evitar actualizaciones innecesarias
+    const invitationIds = invitations
+      .map((inv) => inv.id)
+      .sort()
+      .join(",");
+
+    if (lastInvitationsRef.current !== invitationIds) {
+      lastInvitationsRef.current = invitationIds;
+      syncWithInvitations(invitations);
     }
-  }, [isOpen, refetch]);
+  }, [invitations, syncWithInvitations]);
 
-  const count = invitations.length;
+  // Contar notificaciones no vistas Y pendientes (para el badge rojo)
+  const count = notifications.filter(
+    (n) => n.type === "invitation" && n.status === "pending" && !n.viewed
+  ).length;
 
-  const handleViewInvitation = (invitation) => {
-    // Usar el token existente de la invitación
-    navigate(`/accept-invitation?token=${invitation.token}`);
+  // Contar todas las pendientes (para el footer del dropdown)
+  const totalPending = notifications.filter(
+    (n) => n.type === "invitation" && n.status === "pending"
+  ).length;
+
+  const handleViewInvitation = async (notification) => {
+    // Marcar como vista localmente
+    markAsRead(notification.id);
+
+    // Marcar como vista en el servidor si tiene invitationId
+    if (notification.invitationId) {
+      try {
+        await api.patch(`/items/invitations/${notification.invitationId}`, {
+          viewed: true,
+        });
+      } catch (error) {
+        console.error("Error marcando invitación como vista:", error);
+      }
+    }
+
+    // Navegar a la invitación
+    navigate(`/accept-invitation?token=${notification.token}`);
     setIsOpen(false);
+  };
+
+  const handleNotificationHover = async (notification) => {
+    if (!notification.viewed && notification.invitationId) {
+      // Marcar como vista localmente
+      updateNotification(notification.id, { viewed: true });
+
+      // Marcar como vista en el servidor
+      try {
+        await api.patch(`/items/invitations/${notification.invitationId}`, {
+          viewed: true,
+        });
+      } catch (error) {
+        console.error("Error marcando invitación como vista:", error);
+      }
+    }
   };
 
   return (
@@ -104,7 +154,7 @@ export default function NotificationsDropdown() {
                   <div className="p-4 text-center text-gray-500">
                     Cargando notificaciones...
                   </div>
-                ) : count === 0 ? (
+                ) : totalPending === 0 ? (
                   <div className="p-6 text-center">
                     <Bell className="w-12 h-12 text-gray-300 mx-auto mb-2" />
                     <p className="text-gray-500 font-medium">
@@ -116,50 +166,66 @@ export default function NotificationsDropdown() {
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100">
-                    {invitations.map((invitation) => (
-                      <div
-                        key={invitation.id}
-                        className="p-4 hover:bg-gray-50 transition"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <Bell className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 mb-1">
-                              Invitación a workspace
-                            </p>
-                            <p className="text-sm text-gray-600 mb-2">
-                              <span className="font-semibold">
-                                {invitation.invited_by?.first_name}{" "}
-                                {invitation.invited_by?.last_name}
-                              </span>{" "}
-                              te invitó a{" "}
-                              <span className="font-semibold">
-                                {invitation.workspace_id?.name}
-                              </span>
-                            </p>
-                            <button
-                              onClick={() => handleViewInvitation(invitation)}
-                              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition"
+                    {notifications
+                      .filter(
+                        (n) => n.type === "invitation" && n.status === "pending"
+                      ) // Solo invitaciones pendientes (viewed true o false)
+                      .map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`p-4 hover:bg-gray-50 transition cursor-pointer ${
+                            !notification.viewed ? "bg-blue-50" : ""
+                          }`}
+                          onMouseEnter={() =>
+                            handleNotificationHover(notification)
+                          }
+                          onClick={() => handleViewInvitation(notification)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                !notification.viewed
+                                  ? "bg-blue-500 text-white"
+                                  : "bg-blue-100 text-blue-600"
+                              }`}
                             >
-                              <Eye className="w-3 h-3" />
-                              Ver solicitud
-                            </button>
+                              <Bell className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 mb-1">
+                                {notification.title}
+                              </p>
+                              <p className="text-sm text-gray-600 mb-2">
+                                {notification.message}
+                              </p>
+                              <div className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700">
+                                <Eye className="w-3 h-3" />
+                                Ver solicitud
+                              </div>
+                            </div>
+                            {!notification.viewed && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 )}
               </div>
 
               {/* Footer */}
-              {count > 0 && (
+              {totalPending > 0 && (
                 <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
                   <p className="text-xs text-gray-500 text-center">
-                    {count} invitación{count !== 1 ? "es" : ""} pendiente
-                    {count !== 1 ? "s" : ""}
+                    {totalPending} invitación{totalPending !== 1 ? "es" : ""}{" "}
+                    pendiente
+                    {totalPending !== 1 ? "s" : ""}
+                    {count > 0 && (
+                      <span className="text-blue-600 font-medium">
+                        {" "}
+                        • {count} sin leer
+                      </span>
+                    )}
                   </p>
                 </div>
               )}
