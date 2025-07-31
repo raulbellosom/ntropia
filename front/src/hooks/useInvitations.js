@@ -60,7 +60,15 @@ export function useCreateInvitation() {
       invitationsService.createInvitation({
         ...data,
       }),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      console.log(
+        "✅ useCreateInvitation - onSuccess, invalidando queries para workspace:",
+        variables.workspace_id
+      );
+      // Invalidar queries específicas para el workspace donde se creó la invitación
+      queryClient.invalidateQueries({
+        queryKey: ["workspaceInvitations", variables.workspace_id],
+      });
       queryClient.invalidateQueries({ queryKey: ["invitations"] });
       queryClient.invalidateQueries({ queryKey: ["workspaceMembers"] });
       queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
@@ -82,7 +90,13 @@ export function useDeleteInvitation() {
   return useMutation({
     mutationFn: (invitationId) =>
       invitationsService.deleteInvitation(invitationId),
-    onSuccess: () => {
+    onSuccess: (_, invitationId, context) => {
+      console.log(
+        "✅ useDeleteInvitation - onSuccess, invalidando queries para invitationId:",
+        invitationId
+      );
+      // Invalidar todas las queries relacionadas con invitaciones
+      queryClient.invalidateQueries({ queryKey: ["workspaceInvitations"] });
       queryClient.invalidateQueries({ queryKey: ["invitations"] });
       queryClient.invalidateQueries({ queryKey: ["workspaceMembers"] });
       queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });

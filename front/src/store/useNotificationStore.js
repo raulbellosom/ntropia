@@ -1,6 +1,7 @@
 // src/store/useNotificationStore.js
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import api from "../services/api";
 
 const useNotificationStore = create(
   persist(
@@ -30,7 +31,7 @@ const useNotificationStore = create(
           };
         }),
 
-      // Actualizar notificación existente
+      // Actualizar notificación existente (solo local)
       updateNotification: (id, updates) =>
         set((state) => {
           const newNotifications = state.notifications.map((n) =>
@@ -47,6 +48,44 @@ const useNotificationStore = create(
             unreadCount,
           };
         }),
+
+      // Marcar como vista (actualiza local + backend)
+      markAsViewed: async (id) => {
+        const notification = get().notifications.find((n) => n.id === id);
+        if (!notification || notification.viewed) return;
+
+        // Actualizar estado local inmediatamente
+        set((state) => {
+          const newNotifications = state.notifications.map((n) =>
+            n.id === id ? { ...n, viewed: true } : n
+          );
+          const unreadCount = newNotifications.filter((n) =>
+            n.type === "invitation"
+              ? n.status === "pending" && !n.viewed
+              : !n.viewed
+          ).length;
+
+          return {
+            notifications: newNotifications,
+            unreadCount,
+          };
+        });
+
+        // Actualizar en el backend si es una invitación
+        if (notification.type === "invitation" && notification.invitationId) {
+          try {
+            console.log(
+              "🔵 Actualizando 'viewed' en backend para:",
+              notification.invitationId
+            );
+            await api.patch(`/items/invitations/${notification.invitationId}`, {
+              viewed: true,
+            });
+          } catch (error) {
+            console.error("Error actualizando 'viewed' en backend:", error);
+          }
+        }
+      },
 
       // Eliminar notificación
       removeNotification: (id) =>

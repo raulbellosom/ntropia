@@ -128,8 +128,6 @@ export default function WorkspaceConfigModal({
 
       toast.success("Invitación enviada");
       setInviteEmail("");
-      // Invalidar las notificaciones para que se actualicen inmediatamente
-      queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
       onSuccess?.();
     } catch (error) {
       // Manejar errores específicos de validación
@@ -151,8 +149,6 @@ export default function WorkspaceConfigModal({
     try {
       await deleteInvitation.mutateAsync(invitationId);
       toast.success("Invitación cancelada");
-      // Invalidar las notificaciones para que se actualicen inmediatamente
-      queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
       onSuccess?.();
     } catch {
       toast.error("Error al cancelar la invitación");

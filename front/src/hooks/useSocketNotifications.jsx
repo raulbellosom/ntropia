@@ -19,6 +19,7 @@ export function useSocketNotifications() {
     updateNotification,
     removeNotification,
     removeNotificationByInvitationId,
+    markAsViewed,
   } = useNotificationStore();
 
   useEffect(() => {
@@ -44,12 +45,20 @@ export function useSocketNotifications() {
         date_created: new Date().toISOString(),
       });
 
-      // Mostrar toast
+      // Mostrar toast con hover handler
       toast.custom((t) => (
         <div
           className={`bg-white shadow-xl rounded-xl p-4 border-l-4 border-blue-500 max-w-sm ${
             t.visible ? "animate-enter" : "animate-leave"
           }`}
+          onMouseEnter={() => {
+            // Marcar como vista cuando se hace hover (actualiza local + backend)
+            console.log(
+              "🔵 Toast hover - Marcando invitación como vista:",
+              data.invitationId
+            );
+            markAsViewed(`invitation-${data.invitationId}`);
+          }}
         >
           <p className="font-bold text-blue-700">
             Invitación de {data.inviterName}
@@ -251,6 +260,7 @@ export function useSocketNotifications() {
     updateNotification,
     removeNotification,
     removeNotificationByInvitationId,
+    markAsViewed,
   ]);
 
   return socket;

@@ -19,7 +19,7 @@ export default function NotificationsDropdown() {
     notifications,
     unreadCount,
     syncWithInvitations,
-    markAsRead,
+    markAsViewed,
     updateNotification,
   } = useNotificationStore();
 
@@ -68,19 +68,8 @@ export default function NotificationsDropdown() {
   ).length;
 
   const handleViewInvitation = async (notification) => {
-    // Marcar como vista localmente
-    markAsRead(notification.id);
-
-    // Marcar como vista en el servidor si tiene invitationId
-    if (notification.invitationId) {
-      try {
-        await api.patch(`/items/invitations/${notification.invitationId}`, {
-          viewed: true,
-        });
-      } catch (error) {
-        console.error("Error marcando invitación como vista:", error);
-      }
-    }
+    // Marcar como vista (actualiza local + backend)
+    markAsViewed(notification.id);
 
     // Navegar a la invitación
     navigate(`/accept-invitation?token=${notification.token}`);
@@ -89,17 +78,8 @@ export default function NotificationsDropdown() {
 
   const handleNotificationHover = async (notification) => {
     if (!notification.viewed && notification.invitationId) {
-      // Marcar como vista localmente
-      updateNotification(notification.id, { viewed: true });
-
-      // Marcar como vista en el servidor
-      try {
-        await api.patch(`/items/invitations/${notification.invitationId}`, {
-          viewed: true,
-        });
-      } catch (error) {
-        console.error("Error marcando invitación como vista:", error);
-      }
+      // Marcar como vista (actualiza local + backend)
+      markAsViewed(notification.id);
     }
   };
 
