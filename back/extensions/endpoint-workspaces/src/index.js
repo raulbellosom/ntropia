@@ -1,3 +1,4 @@
+// back/extensions/endpoint-workspaces/src/index.js
 import fetch from "node-fetch";
 
 export default (router, { database, services }) => {

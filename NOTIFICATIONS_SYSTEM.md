@@ -1,228 +1,230 @@
-# Sistema de Notificaciones en Tiempo Real - Ntropia
+# Sistema de Notificaciones en Tiempo Real
 
-## Descripción
+Este documento describe, de manera detallada y profesional, el **flujo de trabajo** del sistema de notificaciones en tiempo real para Ntropia, aprovechando **custom hooks**, **endpoints personalizados** de Directus y un **servidor WebSocket** basado en Socket.IO. Se orienta a un público de **Senior Project Manager** y **Senior Developers**.
 
-Este sistema implementa notificaciones en tiempo real para invitaciones de workspace usando WebSockets. Las notificaciones se muestran tanto como toasts temporales como en un dropdown persistente de notificaciones.
+---
 
-## Arquitectura
+## 1. Visión General
 
-### Frontend
+- **Objetivo:** Garantizar que todas las notificaciones relacionadas con invitaciones y cambios de miembros en los workspaces se propaguen _instantáneamente_ a los usuarios afectados, tanto mediante toasts como mediante componentes de UI (dropdown, modales) en el frontend.
+- **Tecnologías:**
 
-#### 1. Store de Notificaciones (`useNotificationStore.js`)
+  - **Backend:** Directus, MySQL, Socket.IO, Node.js
+  - **Frontend:** React, ViteJS, React Query, Zustand (opcional para gestión de estado local), React Hot Toast
 
-- **Zustand store** que maneja el estado global de notificaciones
-- **Persistencia** con localStorage
-- **Funciones principales**:
-  - `addNotification`: Agregar nueva notificación
-  - `markAsRead`: Marcar como leída
-  - `removeNotification`: Eliminar notificación
-  - `removeNotificationByInvitationId`: Limpiar por ID de invitación
-  - `markAllAsRead`: Marcar todas como leídas
+---
 
-#### 2. Socket Client (`useSocketClient.js`)
+## 2. Arquitectura de Componentes
 
-- **Singleton pattern** para manejar la conexión WebSocket
-- **Gestión automática** de reconexión
-- **Salas por email** del usuario para notificaciones personales
+```plaintext
++----------------+      +----------------------+      +---------------------+
+|   Frontend     | <--> |    Socket Server     | <--> |    Directus Hooks   |
+| (React/Vite)   |      | (Express + Socket.IO)|      | + Endpoints         |
++----------------+      +----------------------+      +---------------------+
+         │                         │                            │
+         │ Socket.IO events        │ POST /emit                 │ DB triggers & HTTP
+         │ toast, dropdown updates│                            │ logic (custom hooks)
+         ▼                         ▼                            ▼
+Real-time UI            Broadcast to rooms            CRUD en tablas
 
-#### 3. Socket Notifications (`useSocketNotifications.jsx`)
-
-- **Hook principal** que escucha eventos WebSocket
-- **Integra** con el store de notificaciones
-- **Eventos que maneja**:
-  - `new-invitation`: Nueva invitación recibida
-  - `invitation-updated`: Invitación aceptada/rechazada
-  - `invitation-created`: Nueva invitación en workspace
-  - `invitation-deleted`: Invitación eliminada
-  - `workspace-member-added`: Nuevo miembro agregado
-  - `workspace-member-updated`: Miembro actualizado
-  - `workspace-member-removed`: Miembro eliminado
-
-#### 4. Unified Notifications (`useNotifications.js`)
-
-- **Hook unificado** que combina:
-  - Invitaciones pendientes (API)
-  - Notificaciones del store
-- **Elimina duplicados** automáticamente
-- **Formateo** de tiempo relativo
-
-#### 5. Componentes
-
-- **NotificationsDropdown**: Dropdown con todas las notificaciones
-- **Integración en layouts**: MainLayout y CanvasLayout
-
-### Backend
-
-#### 1. Socket Server (`back/socket-server/index.js`)
-
-- **Express + Socket.IO** server
-- **Salas por email**: Para notificaciones personales
-- **Salas por workspace**: Para eventos colaborativos
-- **Endpoint POST /emit**: Para emitir eventos desde extensiones
-
-#### 2. Hook de Invitaciones (`back/extensions/hook-invitations/src/index.js`)
-
-- **Hook de Directus** que se ejecuta en operaciones CRUD
-- **Envío de emails** con nodemailer
-- **Eventos WebSocket**:
-  - `new-invitation`: Al crear invitación
-  - `invitation-created`: Para actualizar workspace
-
-#### 3. Endpoint de Invitaciones (`back/extensions/endpoint-invitations/src/index.js`)
-
-- **API REST** para aceptar/rechazar invitaciones
-- **Eventos WebSocket**:
-  - `invitation-updated`: Al cambiar estado
-  - `workspace-member-added`: Al aceptar invitación
-
-## Flujo de Funcionamiento
-
-### 1. Crear Invitación
-
-1. Usuario crea invitación en modal de configuración
-2. **Hook backend** se ejecuta (`invitations.items.create`)
-3. Se envía **email** al invitado
-4. Se emite evento **`new-invitation`** al email del invitado
-5. Se emite evento **`invitation-created`** al workspace
-
-### 2. Recibir Invitación
-
-1. Usuario invitado tiene WebSocket conectado
-2. Recibe evento **`new-invitation`**
-3. Se **agrega notificación** al store
-4. Se muestra **toast temporal**
-5. Se **actualiza** dropdown de notificaciones
-6. Se **invalida cache** de invitaciones pendientes
-
-### 3. Aceptar/Rechazar Invitación
-
-1. Usuario hace clic en "Ver solicitud"
-2. Navega a página de aceptación
-3. Al aceptar/rechazar:
-   - Se llama **endpoint** correspondiente
-   - Se emite **`invitation-updated`**
-   - Se **remueve notificación** del store
-   - Se emite **`workspace-member-added`** (si acepta)
-
-### 4. Workspace en Tiempo Real
-
-1. **Modal de configuración** escucha eventos:
-   - `invitation-created`: Actualiza lista de pendientes
-   - `invitation-deleted`: Remueve de lista
-   - `workspace-member-added`: Actualiza miembros
-2. **Invalidación automática** de queries con React Query
-
-## Configuración de Variables de Entorno
-
-### Backend
-
-```env
-SOCKET_SERVER_PORT=4010
-SOCKET_SERVER_URL=http://localhost:4010
-FRONTEND_URL=http://localhost:5173
 ```
 
-### Frontend
+---
 
-```env
-VITE_SOCKET_URL=http://localhost:4010
+## 3. Modelo de Datos
+
+Las tablas clave para el sistema de notificaciones son:
+
+| Tabla               | Campos relevantes                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `invitations`       | `id`, `workspace_id`, `email`, `token`, `status`, `date_created`, `viewed` (nuevo) |
+| `workspace_members` | `id`, `workspace_id`, `user_id`, `role`, `status`, `date_created`                  |
+| `workspaces`        | `id`, `owner`, `name`, `description`, `is_public`, `canvasHeight`, `canvasWidth`   |
+| `directus_users`    | `id`, `first_name`, `last_name`, `email`, `avatar`                                 |
+
+> **Nota:** Se recomienda agregar el campo booleano `viewed` en la tabla `invitations` para gestionar cuándo una notificación ya fue visualizada.
+
+---
+
+## 4. Backend
+
+### 4.1. Servidor WebSocket
+
+**Archivo:** `back/socket-server/index.js`
+
+- Inicializa un servidor Socket.IO escuchando en `process.env.SOCKET_SERVER_PORT`.
+- Maneja eventos de conexión:
+
+  - `join` (email) → une al usuario a la sala privada por email.
+  - `join-workspace` (workspaceId) → une al usuario a la sala `workspace:${workspaceId}`.
+
+- Proporciona endpoint REST **POST** `/emit` para emitir eventos:
+
+```js
+io.to(room).emit(type, data);
 ```
 
-## Eventos WebSocket
+---
 
-### Para Usuario (Sala: email)
+### 4.2. Custom Hooks de Directus
 
-- `new-invitation`: Nueva invitación recibida
-- `invitation-updated`: Estado de invitación cambió
+**Archivo:** `back/extensions/invitations-hook/index.js`
 
-### Para Workspace (Sala: workspace:ID)
+1. **filter("invitations.items.create")**
 
-- `invitation-created`: Nueva invitación en workspace
-- `invitation-deleted`: Invitación eliminada
-- `workspace-member-added`: Nuevo miembro
-- `workspace-member-updated`: Miembro actualizado
-- `workspace-member-removed`: Miembro eliminado
+   - Genera `token` si no existe.
+   - Envía correo de invitación (Nodemailer).
+   - Llama a `/emit` en Socket Server para evento `new-invitation`.
 
-## Estructura de Datos
+2. **action("invitations.items.create")**
 
-### Notificación
+   - Después de crear, emite:
 
-```javascript
-{
-  id: string,
-  type: "invitation" | "other",
-  title: string,
-  message: string,
-  timestamp: string,
-  read: boolean,
-  data: {
-    invitationId: number,
-    token: string,
-    workspaceName: string,
-    inviterName: string,
-    workspaceId: number
-  }
-}
-```
+     - `new-invitation` al invitado.
+     - `invitation-created` a sala `workspace:${workspaceId}`.
 
-### Evento new-invitation
+3. **filter("invitations.items.delete")**
 
-```javascript
-{
-  invitationId: number,
-  workspaceName: string,
-  inviterName: string,
-  token: string,
-  workspaceId: number
-}
-```
+   - Captura invitaciones antes de borrado.
 
-## Características Principales
+4. **action("invitations.items.delete")**
 
-- ✅ **Tiempo real**: WebSockets para actualizaciones instantáneas
-- ✅ **Persistencia**: Notificaciones guardadas en localStorage
-- ✅ **Sin duplicados**: Sistema inteligente de deduplicación
-- ✅ **Estado leído/no leído**: Gestión completa de estados
-- ✅ **Auto-limpieza**: Notificaciones se eliminan al aceptar/rechazar
-- ✅ **Formato tiempo**: Tiempo relativo (hace 5m, 2h, etc.)
-- ✅ **Reconexión**: Manejo automático de desconexiones
-- ✅ **Salas dinámicas**: Por email y workspace
-- ✅ **Toast + Dropdown**: Doble sistema de notificaciones
+   - Emite `invitation-deleted` tanto al invitado como a la sala del workspace.
 
-## Uso
+5. **action("invitations.items.update")**
 
-### En Layouts
+   - Al aceptar:
 
-```javascript
-import { useSocketNotifications } from "../hooks/useSocketNotifications";
+     - Inserta registro en `workspace_members`.
+     - Emite `invitation-updated` y `workspace-member-added`.
 
-export default function MainLayout() {
-  // Inicializar WebSocket global para notificaciones
-  useSocketNotifications();
+---
 
-  return (
-    <div>
-      <NotificationsDropdown />
-      {/* resto del layout */}
-    </div>
-  );
-}
-```
+### 4.3. Endpoints Personalizados de Directus
 
-### En Componentes
+#### 4.3.1. Invitaciones
 
-```javascript
-import useNotifications from "../hooks/useNotifications";
+**Ruta:** `back/extensions/endpoint-invitations/src/index.js`
 
-export default function MyComponent() {
-  const { notifications, unreadCount, markAsRead, removeNotification } =
-    useNotifications();
+- **GET /**?token=... → Obtiene datos de invitación y workspace.
+- **POST /** → Acepta/Rechaza invitación (query `action=accept|reject`). Emite `invitation-updated` y, si aplica, `workspace-member-added`.
+- **POST /validate** → Valida si se puede invitar (códigos de error `ALREADY_MEMBER`, `PENDING_INVITATION`, `OWNER_EMAIL`).
+- **GET /workspace/\:workspaceId** → Lista invitaciones del workspace (solo `owner` o miembros).
 
-  return (
-    <div>
-      <span>Notificaciones sin leer: {unreadCount}</span>
-      {/* resto del componente */}
-    </div>
-  );
-}
-```
+#### 4.3.2. Workspaces & Miembros
+
+**Ruta:** `back/extensions/endpoint-workspaces/src/index.js`
+
+- **GET /** → Combina workspaces propios y donde es miembro.
+- **GET /\:id** → Detalle + miembros.
+- **POST /\:workspaceId/members/\:memberId/role** → Cambiar rol; emite `workspace-member-updated`.
+- **DELETE /\:workspaceId/members/\:memberId** → Eliminar miembro; emite `workspace-member-removed`.
+
+---
+
+## 5. Flujo de Eventos
+
+1. **Envío de Invitación**
+
+   - Frontend → `POST /endpoint-invitations/validate` → `POST /endpoint-invitations`.
+   - Directus Hook (`filter`) genera token + envía email + `new-invitation` vía WebSocket.
+   - Hook (`action`) emite también `invitation-created` a sala de workspace.
+   - Frontend:
+
+     - `useSocketNotifications` recibe `new-invitation` → muestra toast.
+     - Dropdown y Modal escuchan `invitation-created` → actualizan lista en tiempo real.
+
+2. **Aceptación/Rechazo**
+
+   - Frontend → `POST /endpoint-invitations?action=accept|reject`.
+   - Directus Endpoint actualiza estado, crea `workspace_member` (si acepta).
+   - Emite:
+
+     - `invitation-updated` → refresca dropdown y modal.
+     - `workspace-member-added` (si acepta) → actualiza lista de miembros.
+
+3. **Cancelación de Invitación**
+
+   - Frontend → Directus SDK `deleteInvitation` → hook `invitations.items.delete` → emite `invitation-deleted`.
+   - Frontend recibe → elimina de dropdown & modal.
+
+4. **Modificación de Rol / Eliminación de Miembro**
+
+   - Frontend → Endpoints de workspace → emiten `workspace-member-updated` o `workspace-member-removed`.
+   - Modal de configuración recibe → actualiza lista sin recarga.
+
+---
+
+## 6. Frontend Implementation
+
+### 6.1. Hook de Socket
+
+**Archivo:** `src/hooks/useSocketNotifications.js` fileciteturn0file1
+
+- Conecta a `VITE_SOCKET_URL`.
+- `on("new-invitation")` → toast personalizado.
+- Debe extenderse para escuchar:
+
+  - `invitation-created`
+  - `invitation-updated`
+  - `invitation-deleted`
+  - `workspace-member-added`
+  - `workspace-member-removed`
+
+### 6.2. Dropdown de Notificaciones
+
+**Archivo:** `src/components/common/NotificationsDropdown.jsx` fileciteturn0file2
+
+- Reemplazar polling por **suscripción directa** al estado (Zustand o React Context).
+- **Al recibir** evento `invitation-created` o `invitation-updated`:
+
+  ```js
+  setNotifications((prev) => updateList(prev, eventData));
+  ```
+
+- **Al abrir/hover** sobre cada notificación:
+
+  1. Llamar a `PATCH /items/invitations/{id}` para marcar `viewed: true`.
+  2. Dispatch `markAsRead(id)` en store.
+
+### 6.3. Modal de Configuración
+
+**Archivo:** `src/components/WorkspaceConfigModal.jsx` fileciteturn0file0
+
+- Suscribirse a sala `workspace:${workspace.id}` tras abrir modal.
+- En cada evento:
+
+  - `invitation-created` → `queryClient.setQueryData(["workspaceInvitations", id], (old) => [...old, newInv])`.
+  - `invitation-updated` / `invitation-deleted` → modificar o filtrar.
+  - `workspace-member-added` / `workspace-member-removed` → actualizar lista de miembros via `setQueryData(["workspaceMembers", id])`.
+
+---
+
+## 7. Gestión de Estado y Marca de "Visto"
+
+1. **Campo `viewed`** en `invitations` (booleano, default `false`).
+2. **UI:** contador de notificaciones = invitaciones con `status = pending` **&&** `viewed = false`.
+3. **Evento**: al abrir dropdown o hacer hover → actualizar `viewed` a `true` vía Directus SDK.
+4. **Hook de socket** recibe `invitation-updated` con `viewed = true` → quitar de lista en tiempo real.
+
+---
+
+## 8. Buenas Prácticas e Integración
+
+- **React Query**: mantener datos frescos, usar `queryClient.setQueryData` en lugar de invalidate cuando sea posible.
+- **Zustand**: manejar estado global de notificaciones para desacoplar UI de componente.
+- **Optimización**: evitar renderizados innecesarios, filtrar salas en el servidor WebSocket.
+- **Seguridad**: validar siempre `req.accountability.user` en endpoints y hooks.
+
+---
+
+## 9. Conclusión
+
+Este flujo garantiza:
+
+- **Latencia mínima** en la propagación de eventos.
+- **Consistencia** entre email, toast y componentes de UI.
+- **Escalabilidad**, aprovechando Socket.IO y Directus customizations.
+- **Mantenibilidad** con una capa clara de responsabilidades entre backend y frontend.
+
+Con esta especificación, el equipo de desarrollo podrá implementar y extender el sistema de notificaciones en tiempo real de forma sólida y coherente.

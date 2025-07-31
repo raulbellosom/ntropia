@@ -1,4 +1,4 @@
-// back/extensions/hooks/invitations-hook/index.js
+// back/extensions/invitations-hook/index.js
 import fetch from "node-fetch";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
