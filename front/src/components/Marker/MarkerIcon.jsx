@@ -30,8 +30,8 @@ export default function MarkerIcon({
   const marker = shapes.find((s) => s.id === id && s.type === "marker");
   const title = marker?.props?.title || "";
 
-  const size = 32;
-  const svgString = getMarkerSvg(color, size);
+  const size = 32 / zoom; // Tamaño constante visual
+  const svgString = getMarkerSvg(color, 32); // SVG siempre en tamaño base
   const svgBase64 = "data:image/svg+xml;base64," + btoa(svgString);
   const [image] = useImage(svgBase64);
   const shapeRef = useRef();
@@ -48,10 +48,8 @@ export default function MarkerIcon({
 
   const handleDragEnd = (e) => {
     const node = e.target;
-    const visualX = node.x();
-    const visualY = node.y();
-    const newX = (visualX + size / 2) * zoom;
-    const newY = (visualY + size) * zoom;
+    const newX = node.x() + size / 2;
+    const newY = node.y() + size;
     if (onDragEnd) {
       onDragEnd({
         ...e,
@@ -89,8 +87,6 @@ export default function MarkerIcon({
         y={y - size}
         width={size}
         height={size}
-        scaleX={1 / zoom}
-        scaleY={1 / zoom}
         draggable={isSelected || isInMultiSelection}
         opacity={isInMultiSelection ? 0.8 : 1}
         onClick={onSelect}
@@ -101,12 +97,16 @@ export default function MarkerIcon({
         onContextMenu={onContextMenu}
         onMouseEnter={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "move";
+          if (stage && stage.container()) {
+            stage.container().style.cursor = "move";
+          }
           setShowTooltip(true);
         }}
         onMouseLeave={(e) => {
           const stage = e.target.getStage();
-          stage.container().style.cursor = "default";
+          if (stage && stage.container()) {
+            stage.container().style.cursor = "default";
+          }
           setShowTooltip(false);
         }}
       />
@@ -116,27 +116,20 @@ export default function MarkerIcon({
 
       {/* Tooltip */}
       {showTooltip && title && (
-        <Label
-          x={x}
-          y={y - size - 10}
-          opacity={0.9}
-          listening={false}
-          scaleX={1 / zoom}
-          scaleY={1 / zoom}
-        >
+        <Label x={x} y={y - size - 10 / zoom} opacity={0.9} listening={false}>
           <Tag
             fill="black"
             pointerDirection="down"
-            pointerWidth={10}
-            pointerHeight={10}
+            pointerWidth={10 / zoom}
+            pointerHeight={10 / zoom}
             lineJoin="round"
-            cornerRadius={4}
+            cornerRadius={4 / zoom}
           />
           <Text
             text={title}
             fontFamily="Arial"
-            fontSize={14}
-            padding={6}
+            fontSize={14 / zoom}
+            padding={6 / zoom}
             fill="white"
           />
         </Label>

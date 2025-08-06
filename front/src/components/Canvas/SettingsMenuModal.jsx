@@ -74,6 +74,7 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
     setBackgroundImage,
     clearBackgroundImage,
     backgroundImage,
+    stageRef: storeStageRef,
   } = useCanvasStore();
 
   // 🚀 Funciones de actualización en tiempo real
@@ -191,7 +192,7 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
 
   // Export settings
   const handleExport = (type) => {
-    const stageRef = window.__konvaStageRef;
+    const stageRef = window.__konvaStageRef || storeStageRef;
 
     if (!stageRef) {
       toast.error("No se pudo encontrar el canvas para exportar");
@@ -205,50 +206,25 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
       const origScale = { x: stage.scaleX(), y: stage.scaleY() };
       const origPos = { x: stage.x(), y: stage.y() };
 
-      // Calcular el offset del workspace (área centrada)
+      // Calcular el área del workspace basada en las dimensiones del stage y del canvas
       const stageWidth = stage.width();
       const stageHeight = stage.height();
-      const workspaceOffset = {
-        x: (stageWidth - canvasWidth) / 2,
-        y: (stageHeight - canvasHeight) / 2,
-      };
 
-      // Buscar el grupo del workspace o usar el offset calculado
-      let exportArea = {
-        x: workspaceOffset.x,
-        y: workspaceOffset.y,
+      // El workspace está centrado en el stage
+      const offsetX = (stageWidth - canvasWidth) / 2;
+      const offsetY = (stageHeight - canvasHeight) / 2;
+
+      // Área de exportación (siempre usar las dimensiones del canvas store)
+      const exportArea = {
+        x: offsetX,
+        y: offsetY,
         width: canvasWidth,
         height: canvasHeight,
       };
 
-      // Intentar encontrar el grupo del workspace para ser más preciso
-      const workspaceGroup =
-        stage.findOne("#workspace-group") ||
-        stage.findOne(".workspace-group") ||
-        stage.findOne('[name="workspace-group"]');
-
-      if (workspaceGroup) {
-        exportArea.x = workspaceGroup.x();
-        exportArea.y = workspaceGroup.y();
-        console.log("Workspace group found at:", exportArea.x, exportArea.y);
-      } else {
-        // Buscar el rectángulo de fondo del workspace
-        const backgroundRect =
-          stage.findOne("#background-rect") ||
-          stage.findOne('[name="background-rect"]');
-        if (backgroundRect) {
-          const groupParent = backgroundRect.getParent();
-          if (groupParent && groupParent.getClassName() === "Group") {
-            exportArea.x = groupParent.x();
-            exportArea.y = groupParent.y();
-            console.log(
-              "Background rect parent group found at:",
-              exportArea.x,
-              exportArea.y
-            );
-          }
-        }
-      }
+      // console.log("Stage dimensions:", stageWidth, "x", stageHeight);
+      // console.log("Canvas dimensions:", canvasWidth, "x", canvasHeight);
+      // console.log("Export area:", exportArea);
 
       // Resetear transformaciones para exportar en escala 1:1
       stage.scale({ x: 1, y: 1 });
@@ -259,27 +235,49 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
       const pixelRatio = 2; // Para mejor calidad
       let mimeType = "image/png";
       let quality = 1;
+      let backgroundRectOriginalVisible = true;
+      let backgroundRectOriginalFill = null;
+
+      const backgroundRect = stage.findOne("#background-rect");
 
       if (type === "jpg") {
         mimeType = "image/jpeg";
         quality = 0.9;
 
-        // Para JPG, asegurar fondo blanco en el rectángulo de fondo
-        const backgroundRect = stage.findOne("#background-rect");
-        if (backgroundRect) {
-          const originalFill = backgroundRect.fill();
+        // Para JPG, temporalmente cambiar el fondo a blanco si es transparente
+        if (
+          backgroundRect &&
+          (backgroundColor === "transparent" ||
+            backgroundColor === "rgba(0,0,0,0)")
+        ) {
+          backgroundRectOriginalFill = backgroundRect.fill();
           backgroundRect.fill("#FFFFFF");
           stage.batchDraw();
+        }
+      } else if (type === "png") {
+        // Para PNG, ocultar el fondo si es blanco o transparente para que sea transparente
+        if (backgroundRect) {
+          const currentFill = backgroundColor || backgroundRect.fill();
+          const isWhiteOrTransparent =
+            currentFill === "#FFFFFF" ||
+            currentFill === "#ffffff" ||
+            currentFill === "white" ||
+            currentFill === "transparent" ||
+            currentFill === "rgba(0,0,0,0)" ||
+            currentFill === "rgba(255,255,255,0)" ||
+            currentFill === "rgba(255,255,255,1)" ||
+            currentFill === "#fff" ||
+            currentFill === "#FFF" ||
+            currentFill === "" ||
+            !currentFill;
 
-          // Restaurar después de un momento
-          setTimeout(() => {
-            backgroundRect.fill(originalFill);
+          if (isWhiteOrTransparent) {
+            backgroundRectOriginalVisible = backgroundRect.visible();
+            backgroundRect.visible(false);
             stage.batchDraw();
-          }, 100);
+          }
         }
       }
-
-      console.log("Exporting area:", exportArea);
 
       // Exportar solo el área del workspace
       const uri = stage.toDataURL({
@@ -295,6 +293,19 @@ export default function SettingsMenuModal({ isOpen, onClose }) {
       // Restaurar transformaciones originales
       stage.scale(origScale);
       stage.position(origPos);
+
+      // Restaurar estado del rectángulo de fondo
+      if (backgroundRect) {
+        if (backgroundRectOriginalFill !== null) {
+          // Restaurar el fill original para JPG
+          backgroundRect.fill(backgroundRectOriginalFill);
+        }
+        if (type === "png") {
+          // Restaurar la visibilidad original para PNG
+          backgroundRect.visible(backgroundRectOriginalVisible);
+        }
+      }
+
       stage.batchDraw();
 
       if (type === "pdf") {

@@ -54,10 +54,16 @@ export default function ShapeItem({
     const shapes = useCanvasStore.getState().shapes;
     const layerShapes = shapes
       .filter((s) => s.layerId === obj.layerId && !s._toDelete)
-      .sort((a, b) => b.order - a.order); // Ordenar igual que en UI
+      .sort((a, b) => {
+        // Manejar casos donde order puede ser undefined/null
+        const orderA = a.order ?? 0;
+        const orderB = b.order ?? 0;
+        return orderB - orderA; // Ordenar igual que en UI
+      });
 
     const currentUIIndex = layerShapes.findIndex((s) => s.id === obj.id);
 
+    // Traer al frente = mover hacia arriba en la lista = aumentar order
     if (currentUIIndex > 0) {
       const currentShape = layerShapes[currentUIIndex];
       const targetShape = layerShapes[currentUIIndex - 1];
@@ -99,10 +105,16 @@ export default function ShapeItem({
     const shapes = useCanvasStore.getState().shapes;
     const layerShapes = shapes
       .filter((s) => s.layerId === obj.layerId && !s._toDelete)
-      .sort((a, b) => b.order - a.order); // Ordenar igual que en UI
+      .sort((a, b) => {
+        // Manejar casos donde order puede ser undefined/null
+        const orderA = a.order ?? 0;
+        const orderB = b.order ?? 0;
+        return orderB - orderA; // Ordenar igual que en UI
+      });
 
     const currentUIIndex = layerShapes.findIndex((s) => s.id === obj.id);
 
+    // Enviar atrás = mover hacia abajo en la lista = disminuir order
     if (currentUIIndex < layerShapes.length - 1) {
       const currentShape = layerShapes[currentUIIndex];
       const targetShape = layerShapes[currentUIIndex + 1];

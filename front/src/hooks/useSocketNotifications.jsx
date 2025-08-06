@@ -107,7 +107,7 @@ export function useSocketNotifications() {
 
       // Actualizar store local si es para este usuario
       if (data.invitation?.email === user.email) {
-        if (data.action === "accepted" || data.action === "rejected") {
+        if (data.action === "accept" || data.action === "decline") {
           removeNotificationByInvitationId(data.invitationId);
         } else {
           updateNotification(`invitation-${data.invitationId}`, {
@@ -121,6 +121,13 @@ export function useSocketNotifications() {
         ["workspaceInvitations", data.workspaceId],
         (old) => {
           if (!old) return [];
+
+          // Si la invitación fue aceptada o rechazada, removerla de la lista
+          if (data.action === "accept" || data.action === "decline") {
+            return old.filter((inv) => inv.id !== data.invitationId);
+          }
+
+          // Si fue solo actualizada, modificar en su lugar
           return old.map((inv) =>
             inv.id === data.invitationId ? { ...inv, ...data.invitation } : inv
           );
@@ -129,6 +136,9 @@ export function useSocketNotifications() {
 
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ["pendingInvitations"] });
+      queryClient.invalidateQueries({
+        queryKey: ["workspaceInvitations", data.workspaceId],
+      });
     };
 
     // 4. Evento de invitación eliminada
@@ -175,6 +185,11 @@ export function useSocketNotifications() {
         }
       );
 
+      // Invalidar invitaciones del workspace (por si había una pending que se convirtió en member)
+      queryClient.invalidateQueries({
+        queryKey: ["workspaceInvitations", data.workspaceId],
+      });
+
       // Si es este usuario, actualizar lista de workspaces
       if (data.member?.email === user.email) {
         queryClient.invalidateQueries({ queryKey: ["workspaces"] });
@@ -183,6 +198,14 @@ export function useSocketNotifications() {
           `Te uniste al workspace ${data.member.workspace_name || ""}`,
           {
             duration: 5000,
+          }
+        );
+      } else {
+        // Si es otro usuario uniéndose al workspace donde estoy
+        toast.success(
+          `${data.member.user_id?.first_name} ${data.member.user_id?.last_name} se unió al workspace`,
+          {
+            duration: 3000,
           }
         );
       }

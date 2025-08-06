@@ -193,13 +193,49 @@ export default function LayersPanel() {
           .getState()
           .shapes.find((s) => s.id === shapeId);
         if (movedShape) {
+          // Calcular el order correcto basado en la posición en la capa destino
+          const destLayerShapes = shapes
+            .filter(
+              (s) =>
+                s.layerId === destLayerId && !s._toDelete && s.id !== shapeId
+            )
+            .sort((a, b) => {
+              const orderA = a.order ?? 0;
+              const orderB = b.order ?? 0;
+              return orderB - orderA;
+            });
+
+          // Calcular nuevo order basado en la posición
+          let newOrder;
+          if (destination.index === 0) {
+            // Al principio - obtener el order más alto + 1
+            const maxOrder =
+              destLayerShapes.length > 0
+                ? Math.max(...destLayerShapes.map((s) => s.order ?? 0))
+                : 0;
+            newOrder = maxOrder + 1;
+          } else if (destination.index >= destLayerShapes.length) {
+            // Al final - obtener el order más bajo - 1
+            const minOrder =
+              destLayerShapes.length > 0
+                ? Math.min(...destLayerShapes.map((s) => s.order ?? 0))
+                : 0;
+            newOrder = Math.max(0, minOrder - 1);
+          } else {
+            // En el medio - obtener el promedio entre los orders adyacentes
+            const prevOrder =
+              destLayerShapes[destination.index - 1]?.order ?? 0;
+            const nextOrder = destLayerShapes[destination.index]?.order ?? 0;
+            newOrder = Math.floor((prevOrder + nextOrder) / 2);
+          }
+
           updateShape.mutate(
             {
               id: shapeId,
               data: {
                 name: movedShape.name,
                 type: movedShape.type,
-                order: destination.index,
+                order: newOrder,
                 layer_id: destLayerId,
                 workspace_id: movedShape.workspace_id,
                 data: movedShape.props,
@@ -275,9 +311,16 @@ export default function LayersPanel() {
                     .filter((l) => !l._toDelete && l.id) // 👈 Filtrar primero
                     .sort((a, b) => b.order - a.order) // 👈 ORDEN INVERSO: Mayor order arriba (al frente)
                     .map((layer, idx) => {
-                      const objects = shapes.filter(
-                        (s) => s.layerId === layer.id && !s._toDelete && s.id // 👈 También filtrar shapes sin id
-                      );
+                      const objects = shapes
+                        .filter(
+                          (s) => s.layerId === layer.id && !s._toDelete && s.id // 👈 También filtrar shapes sin id
+                        )
+                        .sort((a, b) => {
+                          // Manejar casos donde order puede ser undefined/null
+                          const orderA = a.order ?? 0;
+                          const orderB = b.order ?? 0;
+                          return orderB - orderA; // 👈 ORDEN CORRECTO: Mayor order arriba (al frente), menor order abajo (al fondo)
+                        });
                       return (
                         <LayerItem
                           key={`layer-${layer.id}-${layer.name}-${

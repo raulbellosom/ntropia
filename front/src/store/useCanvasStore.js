@@ -27,6 +27,9 @@ export const useCanvasStore = create((set, get) => ({
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
   backgroundImage: null,
 
+  // Referencia al Stage de Konva para exportación
+  stageRef: null,
+
   layers: [
     {
       id: baseLayerId,
@@ -210,7 +213,14 @@ export const useCanvasStore = create((set, get) => ({
     }),
 
   // ---- Métodos canvas ----
-  setTool: (tool) => set({ tool }),
+  setTool: (tool) => {
+    // Si cambiamos a hand tool, limpiar selecciones para evitar movimiento accidental
+    if (tool === "hand") {
+      set({ tool, selectedShapeId: null, selectedShapeIds: [] });
+    } else {
+      set({ tool });
+    }
+  },
   setSelectedShape: (id) => {
     if (get().selectedShapeId !== id)
       set({ selectedShapeId: id, selectedShapeIds: id ? [id] : [] });
@@ -259,6 +269,9 @@ export const useCanvasStore = create((set, get) => ({
 
   setZoom: (zoom) => set({ zoom }),
   setPan: (pan) => set({ pan }),
+
+  // Función para establecer la referencia del Stage
+  setStageRef: (stageRef) => set({ stageRef }),
   zoomIn: () => set((state) => ({ zoom: state.zoom * 1.2 })),
   zoomOut: () => set((state) => ({ zoom: state.zoom / 1.2 })),
   resetView: () => set({ zoom: 1, pan: { x: 0, y: 0 } }),

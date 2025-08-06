@@ -480,7 +480,12 @@ export default function LayerItem({
                   >
                     {objects
                       .filter((obj) => obj.id) // 👈 Filtrar objetos sin id
-                      .sort((a, b) => b.order - a.order) // 👈 Ordenar shapes igual que layers (mayor order arriba)
+                      .sort((a, b) => {
+                        // Manejar casos donde order puede ser undefined/null
+                        const orderA = a.order ?? 0;
+                        const orderB = b.order ?? 0;
+                        return orderB - orderA; // 👈 ORDEN CORRECTO: Mayor order arriba (al frente), menor order abajo (al fondo)
+                      })
                       .map((obj, idx) => (
                         <ShapeItem
                           key={`shape-${obj.id}`} // 👈 Clave más específica
@@ -498,7 +503,12 @@ export default function LayerItem({
                           handleRenameShape={handleRenameShape}
                           objects={objects
                             .filter((obj) => obj.id)
-                            .sort((a, b) => b.order - a.order)} // 👈 Pasar objetos ordenados
+                            .sort((a, b) => {
+                              // Manejar casos donde order puede ser undefined/null
+                              const orderA = a.order ?? 0;
+                              const orderB = b.order ?? 0;
+                              return orderB - orderA; // 👈 ORDEN CORRECTO: Mayor order arriba (al frente), menor order abajo (al fondo)
+                            })} // 👈 Pasar objetos ordenados
                           isEditMode={isEditMode}
                           setActiveLayer={setActiveLayer}
                         />

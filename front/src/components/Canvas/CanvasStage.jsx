@@ -7,6 +7,7 @@ import useImage from "use-image";
 
 import { useCanvasStore } from "../../store/useCanvasStore";
 import useZoomPan from "../../hooks/useZoomPan";
+import useTouchGestures from "../../hooks/useTouchGestures";
 import useCanvasShortcuts from "../../hooks/useCanvasShortcuts";
 import useShapeDrawing from "../../hooks/useShapeDrawing";
 import useSelectionBox from "../../hooks/useSelectionBox";
@@ -84,6 +85,7 @@ export default function CanvasStage() {
   const pasteShape = useCanvasStore((s) => s.pasteShape);
   const replaceShape = useCanvasStore((s) => s.replaceShape);
   const setActiveLayer = useCanvasStore((s) => s.setActiveLayer);
+  const setStageRef = useCanvasStore((s) => s.setStageRef);
 
   // Mutations Directus
   const createShapeMut = useCreateShape();
@@ -185,6 +187,9 @@ export default function CanvasStage() {
 
   // Zoom & Pan
   useZoomPan(stageRef, { zoom, setZoom, pan, setPan, tool });
+
+  // Gestos táctiles para dispositivos móviles (pinch zoom)
+  useTouchGestures(stageRef, { zoom, setZoom, pan, setPan });
 
   // Imagen upload
   const { handleImageUpload, openImageInput } = useImageUpload({
@@ -309,6 +314,20 @@ export default function CanvasStage() {
     return () => window.removeEventListener("resize", measure);
   }, [setPan, setZoom]);
 
+  // Establecer referencia global del Stage para exportación
+  useEffect(() => {
+    if (stageRef.current) {
+      window.__konvaStageRef = stageRef.current;
+      setStageRef(stageRef.current); // También establecer en el store
+    }
+    return () => {
+      if (window.__konvaStageRef) {
+        delete window.__konvaStageRef;
+      }
+      setStageRef(null);
+    };
+  }, [stageRef.current, setStageRef]);
+
   // Prevent scroll touch
   useEffect(() => {
     const el = containerRef.current;
@@ -374,6 +393,34 @@ export default function CanvasStage() {
   };
 
   // Transform end
+
+  // Manejadores específicos para eventos táctiles
+  const handleStageTouchStart = (e) => {
+    // Si hay más de un toque, es un gesto de pinch - no procesar como toque simple
+    if (e.evt.touches.length > 1) {
+      return;
+    }
+    // Para toques simples, usar el mismo handler que mouse
+    handleStageMouseDown(e);
+  };
+
+  const handleStageTouchMove = (e) => {
+    // Si hay más de un toque, es un gesto de pinch - no procesar como movimiento simple
+    if (e.evt.touches.length > 1) {
+      return;
+    }
+    // Para toques simples, usar el mismo handler que mouse
+    handleStageMouseMove(e);
+  };
+
+  const handleStageTouchEnd = (e) => {
+    // Si aún hay toques activos, no procesar como fin de toque simple
+    if (e.evt.touches.length > 0) {
+      return;
+    }
+    // Para toques simples, usar el mismo handler que mouse
+    handleStageMouseUp(e);
+  };
   const handleTransformEnd = (e) => {
     const id = e.target.id();
     const node = e.target;
@@ -661,9 +708,9 @@ export default function CanvasStage() {
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
         onMouseUp={handleStageMouseUp}
-        onTouchStart={handleStageMouseDown} // Touch equivalente a mouse down
-        onTouchMove={handleStageMouseMove} // Touch equivalente a mouse move
-        onTouchEnd={handleStageMouseUp} // Touch equivalente a mouse up
+        onTouchStart={handleStageTouchStart} // Touch con detección de pinch
+        onTouchMove={handleStageTouchMove} // Touch con detección de pinch
+        onTouchEnd={handleStageTouchEnd} // Touch con detección de pinch
         onDblClick={(e) => {
           const id = e.target.id();
           if (id) handleShapeDoubleClick(id);
