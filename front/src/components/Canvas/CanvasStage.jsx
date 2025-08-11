@@ -64,6 +64,8 @@ export default function CanvasStage() {
     pan,
     setZoom,
     setPan,
+    setViewport,
+    setCanvasOffset,
     gridEnabled,
     strokeColor,
     fillColor,
@@ -340,14 +342,31 @@ export default function CanvasStage() {
       if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
+
+      // Actualizar dims locales y reset pan/zoom
       setDims({ width: w, height: h });
       setPan({ x: 0, y: 0 });
       setZoom(1);
+
+      // Reportar viewport y offset al store
+      setViewport({ width: w, height: h });
+      const newOffset = {
+        x: (w - canvasWidth) / 2,
+        y: (h - canvasHeight) / 2,
+      };
+      setCanvasOffset(newOffset);
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [setPan, setZoom]);
+  }, [
+    setPan,
+    setZoom,
+    setViewport,
+    setCanvasOffset,
+    canvasWidth,
+    canvasHeight,
+  ]);
 
   // Establecer referencia global del Stage para exportación
   useEffect(() => {

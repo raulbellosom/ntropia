@@ -1,6 +1,7 @@
 // src/store/useCanvasStore.js
 import { create } from "zustand";
 import { generateId } from "../utils/id";
+import { getShapeBBox } from "../utils/canvas";
 import {
   DEFAULT_STROKE_COLOR,
   DEFAULT_FILL_COLOR,
@@ -84,6 +85,82 @@ export const useCanvasStore = create((set, get) => ({
   // Tamaño del canvas
   canvasWidth: 1200,
   canvasHeight: 900,
+
+  // Viewport y offset
+  viewportWidth: 0,
+  viewportHeight: 0,
+  canvasOffset: { x: 0, y: 0 },
+
+  // Viewport y offset setters
+  setViewport: ({ width, height }) =>
+    set({ viewportWidth: width, viewportHeight: height }),
+  setCanvasOffset: ({ x, y }) => set({ canvasOffset: { x, y } }),
+
+  // Focus shape con animación
+  focusShape: (id, { animateMs = 220 } = {}) => {
+    const st = get();
+    const shape = st.shapes.find((s) => s.id === id);
+    if (!shape) return;
+
+    // Obtener bbox de la shape
+    const { x, y, w, h } = getShapeBBox(shape);
+    const pad = 40;
+
+    // Dimensiones reales del viewport
+    const vw = st.viewportWidth || st.canvasWidth || 1200;
+    const vh = st.viewportHeight || st.canvasHeight || 800;
+
+    // Calcular zoom objetivo
+    const targetW = Math.max(1, w + pad * 2);
+    const targetH = Math.max(1, h + pad * 2);
+
+    const zoomX = vw / targetW;
+    const zoomY = vh / targetH;
+    const targetZoom = Math.max(0.2, Math.min(4, Math.min(zoomX, zoomY)));
+
+    // Centro de la shape
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+
+    // Pan objetivo considerando offset del canvas
+    const offX = st.canvasOffset?.x || 0;
+    const offY = st.canvasOffset?.y || 0;
+
+    const targetPan = {
+      x: vw / 2 - (offX + cx) * targetZoom,
+      y: vh / 2 - (offY + cy) * targetZoom,
+    };
+
+    // Estado inicial y final
+    const start = { zoom: st.zoom, pan: { ...st.pan } };
+    const end = { zoom: targetZoom, pan: targetPan };
+    const dur = Math.max(0, animateMs);
+
+    // Sin animación
+    if (dur === 0) {
+      set({ zoom: end.zoom, pan: end.pan });
+      return;
+    }
+
+    // Animación con easeInOutQuad
+    const t0 = performance.now();
+    const ease = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+
+    function frame(now) {
+      const p = Math.min(1, (now - t0) / dur);
+      const k = ease(p);
+
+      const z = start.zoom + (end.zoom - start.zoom) * k;
+      const px = start.pan.x + (end.pan.x - start.pan.x) * k;
+      const py = start.pan.y + (end.pan.y - start.pan.y) * k;
+
+      set({ zoom: z, pan: { x: px, y: py } });
+
+      if (p < 1) requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+  },
 
   // ==== Persistencia / Sync ====
   setAllLayers: (layersFromBackend) =>

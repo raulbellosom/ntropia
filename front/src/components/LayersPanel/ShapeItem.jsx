@@ -8,6 +8,7 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  Crosshair,
 } from "lucide-react";
 import classNames from "classnames";
 import { Draggable } from "@hello-pangea/dnd";
@@ -193,7 +194,7 @@ export default function ShapeItem({
             }
           )}
         >
-          <div className="flex-1 flex items-center gap-2 truncate">
+          <div className="flex-1 flex items-center gap-1 truncate">
             <button
               className="hover:text-blue-900 p-1 hover:bg-white/30 rounded-md transition"
               onClick={(e) => {
@@ -203,6 +204,19 @@ export default function ShapeItem({
               title={obj.visible !== false ? "Ocultar" : "Mostrar"}
             >
               {obj.visible !== false ? <Eye size={15} /> : <EyeOff size={15} />}
+            </button>
+
+            <button
+              className="text-blue-300 hover:text-blue-900 p-1 hover:bg-white/30 rounded-md transition-colors"
+              title="Ubicar shape"
+              onClick={(e) => {
+                e.stopPropagation();
+                useCanvasStore
+                  .getState()
+                  .focusShape(obj.id, { animateMs: 240 });
+              }}
+            >
+              <Crosshair size={15} />
             </button>
 
             {isEditMode && (

@@ -1,6 +1,57 @@
 // src/utils/canvas.js
 
 /**
+ * Obtiene el bounding box de una shape
+ * @param {object} shape - Objeto shape con type y props
+ * @returns {object} { x, y, w, h }
+ */
+export function getShapeBBox(shape) {
+  const { type, props = {} } = shape;
+
+  // Rect / Image (considerar width/height negativos)
+  if (type === "rect" || type === "image" || type === "marker") {
+    let { x = 0, y = 0, width = 0, height = 0 } = props;
+    if (width < 0) {
+      x = x + width;
+      width = Math.abs(width);
+    }
+    if (height < 0) {
+      y = y + height;
+      height = Math.abs(height);
+    }
+    return { x, y, w: width, h: height };
+  }
+
+  // Circle
+  if (type === "circle") {
+    const { x = 0, y = 0, radius = 0 } = props;
+    return { x: x - radius, y: y - radius, w: radius * 2, h: radius * 2 };
+  }
+
+  // Line-like: line, arrow, freeDraw
+  if (
+    type === "line" ||
+    type === "arrow" ||
+    type === "freeDraw" ||
+    type === "free"
+  ) {
+    const pts = props.points || [];
+    const xs = pts.filter((_, i) => i % 2 === 0);
+    const ys = pts.filter((_, i) => i % 2 === 1);
+    if (!xs.length || !ys.length) return { x: 0, y: 0, w: 0, h: 0 };
+    const minX = Math.min(...xs),
+      maxX = Math.max(...xs);
+    const minY = Math.min(...ys),
+      maxY = Math.max(...ys);
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  // Texto / fallback (aprox)
+  const { x = 0, y = 0, width = 120, height = 60 } = props;
+  return { x, y, w: width, h: height };
+}
+
+/**
  * Obtiene la posición real del mouse o touch en el canvas,
  * ajustada por el offset y transformaciones.
  * @param {object} stageRef - Ref de Konva.Stage

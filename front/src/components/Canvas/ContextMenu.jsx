@@ -1,5 +1,6 @@
 // src/components/Canvas/ContextMenu.jsx
 import React, { useEffect, useRef, useState } from "react";
+import { useCanvasStore } from "../../store/useCanvasStore";
 import {
   Copy,
   ClipboardPaste,
@@ -11,6 +12,7 @@ import {
   Settings,
   Lock,
   Unlock,
+  Crosshair,
 } from "lucide-react";
 
 export default function ContextMenu({
@@ -102,6 +104,17 @@ export default function ContextMenu({
         },
       ]
     : [
+        {
+          label: "Ubicar",
+          icon: Crosshair,
+          action: () => {
+            useCanvasStore
+              .getState()
+              .focusShape(contextMenu.shapeId, { animateMs: 240 });
+            onClose();
+          },
+          className: "text-blue-600 dark:text-blue-400",
+        },
         {
           label: "Propiedades",
           icon: Settings,
