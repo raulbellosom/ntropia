@@ -21,6 +21,7 @@ export default function RectShape({
   onContextMenu,
   listening = true,
   tool = "select",
+  locked = false,
 }) {
   const shapeRef = useRef();
   const trRef = useRef();
@@ -45,11 +46,11 @@ export default function RectShape({
         stroke={stroke}
         fill={fill}
         strokeWidth={isInMultiSelection ? strokeWidth + 1 : strokeWidth}
-        draggable={isSelected || isInMultiSelection}
+        draggable={(isSelected || isInMultiSelection) && !locked}
         rotation={rotation || 0}
-        opacity={isInMultiSelection ? 0.8 : 1}
-        onClick={onSelect}
-        onTap={onSelect}
+        opacity={locked ? 0.5 : isInMultiSelection ? 0.8 : 1}
+        onClick={locked ? undefined : onSelect}
+        onTap={locked ? undefined : onSelect}
         onDblClick={onDoubleClick}
         onDblTap={onDoubleClick}
         onDragEnd={onDragEnd || onTransformEnd}

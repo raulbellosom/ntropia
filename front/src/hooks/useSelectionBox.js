@@ -42,10 +42,11 @@ export default function useSelectionBox({
     }));
   };
 
-  // Termina selección y selecciona shapes dentro del área
+  // Termina selección y selecciona shapes dentro del área que no estén bloqueadas
   const handleEnd = () => {
     if (!isSelecting || !selectBox) return;
 
+    // Calcular si hubo suficiente arrastre para considerar selección
     const dragDistance =
       Math.abs(selectBox.endX - selectBox.startX) +
       Math.abs(selectBox.endY - selectBox.startY);
@@ -62,7 +63,8 @@ export default function useSelectionBox({
         let shapeLeft, shapeRight, shapeTop, shapeBottom;
 
         const layer = layers.find((l) => l.id === shape.layerId);
-        if (layer && layer.locked) return false;
+        // No seleccionar si la capa está bloqueada o la shape está bloqueada
+        if ((layer && layer.locked) || shape.locked) return false;
 
         switch (shape.type) {
           case "rect":

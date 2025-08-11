@@ -1,6 +1,14 @@
 // src/components/LayersPanel/ShapeItem.jsx
 import React from "react";
-import { Eye, EyeOff, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import classNames from "classnames";
 import { Draggable } from "@hello-pangea/dnd";
 import { useCanvasStore } from "../../store/useCanvasStore";
@@ -46,6 +54,24 @@ export default function ShapeItem({
     }
     setEditingId(null);
     setEditingValue("");
+  };
+
+  // Handle shape lock/unlock
+  const onToggleLock = (e) => {
+    e.stopPropagation();
+    updateShape.mutate({
+      id: obj.id,
+      data: {
+        name: obj.name,
+        type: obj.type,
+        order: obj.order,
+        layer_id: obj.layerId,
+        workspace_id: obj.workspace_id,
+        data: obj.props,
+        visible: obj.visible,
+        locked: !obj.locked,
+      },
+    });
   };
 
   // Handle reorder forward/back
@@ -154,7 +180,7 @@ export default function ShapeItem({
   return (
     <Draggable
       draggableId={`shape-${obj.id}`} // 👈 Asegúrate que sea string y único
-      isDragDisabled={!isEditMode || layerLocked}
+      isDragDisabled={!isEditMode || layerLocked || obj.locked}
       index={idx}
     >
       {(objProvided) => (
@@ -178,7 +204,7 @@ export default function ShapeItem({
         >
           <div className="flex-1 flex items-center gap-2 truncate">
             <button
-              className="hover:text-blue-300 transition"
+              className="hover:text-blue-900 p-1 hover:bg-white/30 rounded-md transition"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleShapeVisibility(obj.id);
@@ -186,6 +212,15 @@ export default function ShapeItem({
             >
               {obj.visible !== false ? <Eye size={15} /> : <EyeOff size={15} />}
             </button>
+            {isEditMode && (
+              <button
+                className="hover:text-blue-900 p-1 hover:bg-white/30 rounded-md transition"
+                onClick={onToggleLock}
+                title={obj.locked ? "Desbloquear objeto" : "Bloquear objeto"}
+              >
+                {obj.locked ? <Lock size={15} /> : <Unlock size={15} />}
+              </button>
+            )}
             <span
               className="text-xs truncate"
               onDoubleClick={
@@ -248,7 +283,7 @@ export default function ShapeItem({
             <>
               <button
                 className={classNames(
-                  "ml-2 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30 transition-colors",
+                  "ml-2 text-blue-300 hover:text-blue-900 p-1 hover:bg-white/30 rounded-md disabled:opacity-30 transition-colors",
                   {
                     "cursor-not-allowed": idx === 0,
                   }
@@ -261,7 +296,7 @@ export default function ShapeItem({
               </button>
               <button
                 className={classNames(
-                  "ml-1 text-blue-300 hover:text-blue-500 p-1 rounded disabled:opacity-30 transition-colors",
+                  "ml-1 text-blue-300 hover:text-blue-900 p-1 hover:bg-white/30 rounded-md disabled:opacity-30 transition-colors",
                   {
                     "cursor-not-allowed": idx === objects.length - 1,
                   }
@@ -275,7 +310,7 @@ export default function ShapeItem({
                 <ChevronDown size={16} />
               </button>
               <button
-                className="ml-2 text-red-400 hover:text-red-600"
+                className="ml-2 text-red-400 hover:text-red-600 p-1 hover:bg-white/30 rounded-md"
                 title="Eliminar elemento"
                 onClick={onDelete}
               >

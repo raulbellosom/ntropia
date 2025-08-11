@@ -374,7 +374,18 @@ export default function CanvasStage() {
     }
 
     // Si es herramienta select y hacemos clic en shape, no hacer nada (lo maneja el shape)
-    if (tool === "select" && isShape) return;
+    if (tool === "select" && isShape) {
+      // Verificar si la shape está bloqueada
+      const shapeId = e.target.parent?.id() || e.target.id();
+      const shape = shapes.find((s) => s.id === shapeId);
+
+      if (shape?.locked) {
+        // Si la shape está bloqueada, tratarla como si fuera parte del fondo
+        clearSelection();
+        selectStart();
+      }
+      return;
+    }
 
     // Si no es herramienta select y estamos en modo edición, empezar a dibujar
     if (tool !== "select" && isEditMode) {
@@ -798,6 +809,26 @@ export default function CanvasStage() {
         onOpenProperties={openPropertiesMenu}
         clipboardShape={useCanvasStore.getState().clipboardShape}
         onClose={hideContextMenu}
+        shapes={shapes}
+        onToggleLock={(shapeId) => {
+          const shape = shapes.find((s) => s.id === shapeId);
+          if (shape) {
+            updateShapeMut.mutate({
+              id: shapeId,
+              data: {
+                name: shape.name,
+                type: shape.type,
+                order: shape.order,
+                layer_id: shape.layerId,
+                workspace_id: shape.workspace_id,
+                data: shape.props,
+                visible: shape.visible,
+                locked: !shape.locked,
+              },
+            });
+          }
+          hideContextMenu();
+        }}
       />
 
       {markerModalShapeId && (

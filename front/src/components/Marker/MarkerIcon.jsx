@@ -114,7 +114,7 @@ export default function MarkerIcon({
         <Transformer ref={trRef} enabledAnchors={[]} rotateEnabled={true} />
       )}
 
-      {/* Tooltip */}
+      {/* Tooltip - solo se muestra en hover y si hay título */}
       {showTooltip && title && (
         <Label x={x} y={y - size - 10 / zoom} opacity={0.9} listening={false}>
           <Tag

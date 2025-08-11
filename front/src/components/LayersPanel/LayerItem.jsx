@@ -476,7 +476,7 @@ export default function LayerItem({
                   <ul
                     ref={dropProvided.innerRef}
                     {...dropProvided.droppableProps}
-                    className="mt-2 space-y-1 max-h-32 overflow-y-auto"
+                    className="mt-2 space-y-1"
                   >
                     {objects
                       .filter((obj) => obj.id) // 👈 Filtrar objetos sin id

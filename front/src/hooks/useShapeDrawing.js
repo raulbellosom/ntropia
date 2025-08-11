@@ -28,7 +28,7 @@ export default function useShapeDrawing({
   const [tempShapeData, setTempShapeData] = useState(null); // 👈 Nuevo estado
 
   // Función para crear figura según herramienta
-  const handleMouseDown = (e) => {
+  const handleMouseDown = async (e) => {
     const layer = layers.find((l) => l.id === activeLayerId);
     if (layer && layer.locked) return;
 
@@ -160,9 +160,26 @@ export default function useShapeDrawing({
             images: [],
           },
         };
-        // 👈 Marker se crea inmediatamente porque no necesita arrastre
-        id = addShape(shapeData);
+        // Marker se crea inmediatamente y se abre el modal
+        id = await addShape(shapeData);
         setCurrentId(id);
+
+        // Cambiar a herramienta select después de colocar el marker
+        if (useCanvasStoreRef) {
+          useCanvasStoreRef.getState().setTool("select");
+        }
+
+        // Esperar un momento a que se complete la creación
+        setTimeout(() => {
+          // Establecer la shape como seleccionada
+          setSelectedShape(id);
+          // Abrir el modal del marker
+          const markerModalShapeId =
+            useCanvasStoreRef.getState().setMarkerModalShapeId;
+          if (markerModalShapeId) {
+            markerModalShapeId(id);
+          }
+        }, 100);
         break;
       default:
         // Si no es herramienta de dibujo, no hacer nada

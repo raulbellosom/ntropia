@@ -36,6 +36,7 @@ export default function MarkerModal({
   const [description, setDescription] = useState("");
   const [images, setImages] = useState([]);
   const [markerColor, setMarkerColor] = useState("#FF4D4F");
+  const [externalLink, setExternalLink] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -53,6 +54,7 @@ export default function MarkerModal({
       setDescription(marker.props.description || "");
       setImages(marker.props.images || []);
       setMarkerColor(marker.props.color || "#FF4D4F");
+      setExternalLink(marker.props.externalLink || "");
     }
   }, [marker]);
 
@@ -66,7 +68,8 @@ export default function MarkerModal({
           description !== (marker.props.description || "") ||
           JSON.stringify(images) !==
             JSON.stringify(marker.props.images || []) ||
-          markerColor !== (marker.props.color || "#FF4D4F");
+          markerColor !== (marker.props.color || "#FF4D4F") ||
+          externalLink !== (marker.props.externalLink || "");
 
         if (hasChanges) {
           // Actualizar store local
@@ -75,6 +78,7 @@ export default function MarkerModal({
             description,
             images,
             color: markerColor,
+            externalLink,
           });
 
           // Sincronizar con servidor
@@ -87,6 +91,7 @@ export default function MarkerModal({
                 description,
                 images,
                 color: markerColor,
+                externalLink,
               },
             },
           });
@@ -100,6 +105,7 @@ export default function MarkerModal({
     description,
     images,
     markerColor,
+    externalLink,
     marker,
     viewOnly,
     shapeId,
@@ -138,6 +144,7 @@ export default function MarkerModal({
         description,
         images: updatedImages, // ✅ Incluir las nuevas imágenes
         color: markerColor,
+        externalLink,
       });
 
       // Persistir en servidor
@@ -150,6 +157,7 @@ export default function MarkerModal({
             description,
             images: updatedImages, // ✅ Los IDs se guardan inmediatamente
             color: markerColor,
+            externalLink,
           },
         },
       });
@@ -234,6 +242,7 @@ export default function MarkerModal({
         onClose={onClose}
         title={viewOnly ? "Detalle de Marcador" : "Editar Marcador"}
         disableOutsideClick={lightboxIndex !== null}
+        panelClassName="overflow-y-auto max-h-[90vh]"
       >
         <div className="space-y-4">
           {/* Color */}
@@ -285,7 +294,7 @@ export default function MarkerModal({
           <div>
             <label className="block text-sm font-medium">Descripción</label>
             {viewOnly ? (
-              <div className="p-2 rounded bg-slate-50 border-b border-slate-200 min-h-[100px]">
+              <div className="p-2 rounded bg-slate-50 border-b border-slate-200 min-h-[100px] max-h-[200px] overflow-y-auto whitespace-pre-line">
                 {description || (
                   <span className="italic text-slate-400">Sin descripción</span>
                 )}
@@ -296,6 +305,38 @@ export default function MarkerModal({
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full border rounded p-2"
                 rows={3}
+                disabled={viewOnly}
+              />
+            )}
+          </div>
+
+          {/* Enlace Externo */}
+          <div>
+            <label className="block text-sm font-medium">Enlace Externo</label>
+            {viewOnly ? (
+              <div className="p-2 rounded bg-slate-50 border-b border-slate-200">
+                {externalLink ? (
+                  <a
+                    href={externalLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    {externalLink}
+                  </a>
+                ) : (
+                  <span className="italic text-slate-400">
+                    Sin enlace externo
+                  </span>
+                )}
+              </div>
+            ) : (
+              <input
+                type="url"
+                value={externalLink}
+                onChange={(e) => setExternalLink(e.target.value)}
+                placeholder="https://ejemplo.com"
+                className="w-full border rounded p-2"
                 disabled={viewOnly}
               />
             )}
@@ -405,6 +446,7 @@ export default function MarkerModal({
                             description,
                             images: updatedImages,
                             color: markerColor,
+                            externalLink,
                           });
 
                           updateShapeMutation.mutate({
@@ -416,6 +458,7 @@ export default function MarkerModal({
                                 description,
                                 images: updatedImages,
                                 color: markerColor,
+                                externalLink,
                               },
                             },
                           });
@@ -449,10 +492,12 @@ export default function MarkerModal({
         >
           {/* Botón cerrar */}
           <button
-            className="absolute cursor-pointer top-8 right-8 z-50 text-white bg-black/30 rounded-full p-2 hover:bg-black/50"
+            className="absolute cursor-pointer top-4 right-4 z-50 text-white bg-black/30 rounded-full p-2 hover:bg-black/50"
             onClick={(e) => {
               e.stopPropagation();
               setLightboxIndex(null);
+              setZoom(1); // Resetear zoom al cerrar
+              setOffset({ x: 0, y: 0 }); // Resetear posición
             }}
           >
             <XCircle size={28} />
@@ -466,6 +511,9 @@ export default function MarkerModal({
                 setLightboxIndex((prev) =>
                   prev > 0 ? prev - 1 : images.length - 1
                 );
+                // Resetear zoom y posición al cambiar de imagen
+                setZoom(1);
+                setOffset({ x: 0, y: 0 });
               }}
               className="absolute cursor-pointer left-4 top-1/2 transform -translate-y-1/2 z-50 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full"
             >
@@ -481,6 +529,9 @@ export default function MarkerModal({
                 setLightboxIndex((prev) =>
                   prev < images.length - 1 ? prev + 1 : 0
                 );
+                // Resetear zoom y posición al cambiar de imagen
+                setZoom(1);
+                setOffset({ x: 0, y: 0 });
               }}
               className="absolute cursor-pointer right-4 top-1/2 transform -translate-y-1/2 z-50 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full"
             >

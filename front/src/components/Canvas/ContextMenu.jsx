@@ -9,6 +9,8 @@ import {
   ArrowUp,
   ArrowDown,
   Settings,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 export default function ContextMenu({
@@ -24,6 +26,8 @@ export default function ContextMenu({
   onClose,
   onReplace,
   onOpenProperties, // Nueva prop para abrir propiedades
+  shapes = [], // Lista de shapes para verificar el estado de bloqueo
+  onToggleLock, // Función para manejar el bloqueo/desbloqueo
 }) {
   const menuRef = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -83,69 +87,87 @@ export default function ContextMenu({
 
   const animation = "animate-fade-in duration-150 transition-all ease-in-out";
 
-  // Opciones del menú contextual
-  const menuOptions = [
-    {
-      label: "Propiedades",
-      icon: Settings,
-      action: (event) =>
-        onOpenProperties(event || { clientX: pos.left, clientY: pos.top }),
-      shortcut: "",
-      className: "text-blue-600 dark:text-blue-400",
-    },
-    { type: "divider" },
-    {
-      label: "Copiar",
-      icon: Copy,
-      action: () => onCopy(contextMenu.shapeId),
-      shortcut: "Ctrl+C",
-    },
-    clipboardShape
-      ? {
-          label: "Pegar",
-          icon: ClipboardPaste,
-          action: () => onPaste(contextMenu.shapeId),
-          shortcut: "Ctrl+V",
-        }
-      : null,
-    clipboardShape
-      ? {
-          label: "Reemplazar",
-          icon: ClipboardPaste,
-          action: () => onReplace(contextMenu.shapeId),
-          shortcut: "Ctrl+R",
-          disabled: !clipboardShape,
-        }
-      : null,
-    {
-      label: "Eliminar",
-      icon: Trash2,
-      action: () => onDelete(contextMenu.shapeId),
-      shortcut: "Del",
-      className: "text-red-600 dark:text-red-400",
-    },
-    { type: "divider" },
-    {
-      label: "Traer al frente",
-      icon: ArrowUpToLine,
-      action: () => onBringToFront(contextMenu.shapeId),
-    },
-    {
-      label: "Enviar al fondo",
-      icon: ArrowDownToLine,
-      action: () => onSendToBack(contextMenu.shapeId),
-    },
-    {
-      label: "Subir",
-      icon: ArrowUp,
-      action: () => onBringForward(contextMenu.shapeId),
-    },
-    {
-      label: "Bajar",
-      icon: ArrowDown,
-      action: () => onSendBackward(contextMenu.shapeId),
-    },
-  ].filter(Boolean);
+  // Obtener la shape actual del menú contextual
+  const currentShape = shapes.find((s) => s.id === contextMenu.shapeId);
+  const isLocked = currentShape?.locked;
+
+  // Opciones del menú contextual basadas en el estado de bloqueo
+  const menuOptions = isLocked
+    ? [
+        {
+          label: "Desbloquear",
+          icon: Unlock,
+          action: () => onToggleLock?.(contextMenu.shapeId),
+          className: "text-blue-600 dark:text-blue-400",
+        },
+      ]
+    : [
+        {
+          label: "Propiedades",
+          icon: Settings,
+          action: (event) =>
+            onOpenProperties(event || { clientX: pos.left, clientY: pos.top }),
+          shortcut: "",
+          className: "text-blue-600 dark:text-blue-400",
+        },
+        { type: "divider" },
+        {
+          label: "Bloquear",
+          icon: Lock,
+          action: () => onToggleLock?.(contextMenu.shapeId),
+        },
+        {
+          label: "Copiar",
+          icon: Copy,
+          action: () => onCopy(contextMenu.shapeId),
+          shortcut: "Ctrl+C",
+        },
+        clipboardShape
+          ? {
+              label: "Pegar",
+              icon: ClipboardPaste,
+              action: () => onPaste(contextMenu.shapeId),
+              shortcut: "Ctrl+V",
+            }
+          : null,
+        clipboardShape
+          ? {
+              label: "Reemplazar",
+              icon: ClipboardPaste,
+              action: () => onReplace(contextMenu.shapeId),
+              shortcut: "Ctrl+R",
+              disabled: !clipboardShape,
+            }
+          : null,
+        {
+          label: "Eliminar",
+          icon: Trash2,
+          action: () => onDelete(contextMenu.shapeId),
+          shortcut: "Del",
+          className: "text-red-600 dark:text-red-400",
+        },
+        { type: "divider" },
+        {
+          label: "Traer al frente",
+          icon: ArrowUpToLine,
+          action: () => onBringToFront(contextMenu.shapeId),
+        },
+        {
+          label: "Enviar al fondo",
+          icon: ArrowDownToLine,
+          action: () => onSendToBack(contextMenu.shapeId),
+        },
+        {
+          label: "Subir",
+          icon: ArrowUp,
+          action: () => onBringForward(contextMenu.shapeId),
+        },
+        {
+          label: "Bajar",
+          icon: ArrowDown,
+          action: () => onSendBackward(contextMenu.shapeId),
+        },
+      ].filter(Boolean);
 
   return (
     <div
