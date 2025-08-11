@@ -1,5 +1,4 @@
 // src/components/Canvas/CanvasStage.jsx
-
 import React, { useRef, useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Stage, Layer, Group, Rect, Image as KonvaImage } from "react-konva";
@@ -34,6 +33,12 @@ import {
   useUpdateShape,
   useDeleteShape,
 } from "../../hooks/useShapes";
+
+// Función auxiliar para capitalizar strings
+const capitalize = (str) => {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+};
 
 export default function CanvasStage() {
   const { id: workspaceId } = useParams();
@@ -92,6 +97,23 @@ export default function CanvasStage() {
   const updateShapeMut = useUpdateShape();
   const deleteShapeMut = useDeleteShape();
 
+  // 📌 Calcula el siguiente order para la capa (max(order) + 1)
+  const getNextOrder = (layerId) => {
+    const { shapes } = useCanvasStore.getState();
+    const layerShapes = shapes.filter(
+      (s) => s.layerId === layerId && !s._toDelete
+    );
+
+    if (layerShapes.length === 0) return 0;
+
+    const maxOrder = Math.max(
+      ...layerShapes.map((s) =>
+        typeof s.order === "number" ? s.order : Number(s.order) || 0
+      )
+    );
+    return maxOrder + 1;
+  };
+
   // Delete selected shapes (for keyboard shortcut) - Definir antes de usar
   const deleteSelectedShapes = () => {
     const { selectedShapeIds } = useCanvasStore.getState();
@@ -127,9 +149,13 @@ export default function CanvasStage() {
     // 🚀 SOLO servidor - Sin update local
     // Estructura correcta para createShapeMut
     createShapeMut.mutate({
+      name:
+        clipboardShape.name ||
+        `${capitalize(clipboardShape.type)} ${shapes.length + 1}`,
       type: clipboardShape.type,
       layer_id: clipboardShape.layerId,
       workspace_id: workspaceId,
+      order: getNextOrder(clipboardShape.layerId),
       data: newProps, // Las props van directamente en data
     });
   };
@@ -167,9 +193,14 @@ export default function CanvasStage() {
     // Luego crear la nueva shape con estructura correcta
     setTimeout(() => {
       createShapeMut.mutate({
+        name:
+          target.name ||
+          clipboardShape.name ||
+          `${capitalize(clipboardShape.type)} ${shapes.length + 1}`,
         type: clipboardShape.type,
         layer_id: target.layerId,
         workspace_id: workspaceId,
+        order: getNextOrder(target.layerId), // Usar el siguiente order en la capa destino
         data: newProps, // Las props van directamente en data
       });
     }, 100); // Pequeño delay para asegurar que la eliminación se procese primero
@@ -202,8 +233,10 @@ export default function CanvasStage() {
       // 🚀 SOLO servidor - Sin update local
       const result = await createShapeMut.mutateAsync({
         ...shape,
+        name: shape.name || `${capitalize(shape.type)} ${shapes.length + 1}`,
         layer_id: shape.layerId,
         workspace_id: workspaceId,
+        order: getNextOrder(shape.layerId),
         data: shape.props,
       });
       return result?.data?.id; // Retornar el ID de la shape creada
@@ -246,8 +279,10 @@ export default function CanvasStage() {
       // 🚀 SOLO servidor - Sin update local
       createShapeMut.mutate({
         ...shape,
+        name: shape.name || `${capitalize(shape.type)} ${shapes.length + 1}`,
         layer_id: shape.layerId,
         workspace_id: workspaceId,
+        order: getNextOrder(shape.layerId),
         data: shape.props,
       });
     },
