@@ -2,15 +2,6 @@
 import React from "react";
 import { Group, Line } from "react-konva";
 
-/**
- * Grid de líneas para guiar en el canvas.
- * @param {number} width     Ancho total del canvas (px)
- * @param {number} height    Alto total del canvas (px)
- * @param {number} cellSize  Tamaño de cada celda (px)
- * @param {string} stroke    Color de línea
- * @param {number[]} dash    Patrón de guión para las líneas (dash)
- * @param {boolean} enabled  Mostrar u ocultar grid
- */
 export default function Grid({
   width = 1080,
   height = 720,
@@ -22,7 +13,6 @@ export default function Grid({
   if (!enabled) return null;
 
   const lines = [];
-  // Líneas verticales
   for (let x = 0; x <= width; x += cellSize) {
     lines.push(
       <Line
@@ -34,7 +24,6 @@ export default function Grid({
       />
     );
   }
-  // Líneas horizontales
   for (let y = 0; y <= height; y += cellSize) {
     lines.push(
       <Line
@@ -47,5 +36,5 @@ export default function Grid({
     );
   }
 
-  return <Group>{lines}</Group>;
+  return <Group listening={false}>{lines}</Group>;
 }

@@ -429,14 +429,15 @@ export default function CanvasStage() {
 
     // Si es herramienta select y hacemos clic en shape, no hacer nada (lo maneja el shape)
     if (tool === "select" && isShape) {
-      // Verificar si la shape está bloqueada
+      // Verificar si la shape está bloqueada o invisible
       const shapeId = e.target.parent?.id() || e.target.id();
       const shape = shapes.find((s) => s.id === shapeId);
 
-      if (shape?.locked) {
-        // Si la shape está bloqueada, tratarla como si fuera parte del fondo
+      if (shape?.locked || shape?.visible === false) {
+        // Si la shape está bloqueada o invisible, tratarla como si fuera parte del fondo
         clearSelection();
         selectStart();
+        return;
       }
       return;
     }
@@ -492,7 +493,8 @@ export default function CanvasStage() {
     const shape = shapes.find((s) => s.id === id);
     if (!shape) return;
     const layer = layers.find((l) => l.id === shape.layerId);
-    if (layer?.locked) return;
+    // No permitir transformaciones en shapes bloqueadas o invisibles
+    if (layer?.locked || shape.locked || shape.visible === false) return;
 
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
@@ -570,6 +572,10 @@ export default function CanvasStage() {
 
     const shape = shapes.find((s) => s.id === id);
     if (!shape) return;
+
+    // No permitir arrastrar shapes bloqueadas o invisibles
+    const layer = layers.find((l) => l.id === shape.layerId);
+    if (layer?.locked || shape.locked || shape.visible === false) return;
 
     // 🚀 SOLO servidor - Sin update local
     // Enviar los props dentro del campo 'data' de Directus

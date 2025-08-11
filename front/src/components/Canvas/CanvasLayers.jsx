@@ -54,12 +54,14 @@ export default function CanvasLayers({
               listening={!isLocked}
             >
               {shapesDeCapa.map((s) => {
-                const isShapeLocked = isLocked;
+                const isShapeLocked = isLocked || s.locked;
+                const isShapeInvisible = s.visible === false;
                 let longPressTimer = null;
 
-                // Handlers solo si es modo edición
+                // Handlers solo si es modo edición y shape no está bloqueada/invisible
                 const handleTouchStart = (e) => {
-                  if (tool !== "select" || isShapeLocked) return;
+                  if (tool !== "select" || isShapeLocked || isShapeInvisible)
+                    return;
                   longPressTimer = setTimeout(() => {
                     setContextMenu(e, s.id);
                   }, 420);
@@ -68,7 +70,9 @@ export default function CanvasLayers({
 
                 // PROPS COMUNES (modificados por modo edición)
                 const isMarker = s.type === "marker";
-                const allowDblClick = isEditMode || isMarker;
+                const allowDblClick =
+                  (isEditMode && !isShapeLocked && !isShapeInvisible) ||
+                  isMarker;
 
                 const propsShape = {
                   id: s.id,
@@ -85,8 +89,14 @@ export default function CanvasLayers({
                   draggable:
                     isEditMode &&
                     !isShapeLocked &&
+                    !isShapeInvisible &&
                     selectedShapeIds.includes(s.id),
-                  listening: isEditMode && tool === "select" && !isShapeLocked,
+                  listening:
+                    isEditMode &&
+                    tool === "select" &&
+                    !isShapeLocked &&
+                    !isShapeInvisible,
+                  visible: !isShapeInvisible,
                   isLocked: isShapeLocked,
                   ...(isEditMode
                     ? {

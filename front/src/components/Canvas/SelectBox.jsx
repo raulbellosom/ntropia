@@ -1,31 +1,39 @@
 // src/components/Canvas/SelectBox.jsx
-
 import React from "react";
 import { Rect } from "react-konva";
 
-/**
- * Componente visual para el rectángulo de selección múltiple.
- * Recibe por props el objeto selectBox: { startX, startY, endX, endY }
- */
 export default function SelectBox({ selectBox }) {
   if (!selectBox) return null;
 
-  const x = Math.min(selectBox.startX, selectBox.endX);
-  const y = Math.min(selectBox.startY, selectBox.endY);
-  const width = Math.abs(selectBox.endX - selectBox.startX);
-  const height = Math.abs(selectBox.endY - selectBox.startY);
+  let x, y, width, height;
+
+  // Manejo de ambos formatos: {x,y,width,height} y {startX,startY,endX,endY}
+  if ("width" in selectBox && "height" in selectBox) {
+    x = Number.isFinite(selectBox.x) ? selectBox.x : 0;
+    y = Number.isFinite(selectBox.y) ? selectBox.y : 0;
+    width = Number.isFinite(selectBox.width) ? selectBox.width : 0;
+    height = Number.isFinite(selectBox.height) ? selectBox.height : 0;
+  } else {
+    x = Math.min(selectBox.startX, selectBox.endX);
+    y = Math.min(selectBox.startY, selectBox.endY);
+    width = Math.abs(selectBox.endX - selectBox.startX);
+    height = Math.abs(selectBox.endY - selectBox.startY);
+  }
+
+  if (width === 0 && height === 0) return null;
 
   return (
     <Rect
+      listening={false}
       x={x}
       y={y}
       width={width}
       height={height}
-      fill="rgba(173, 216, 230, 0.2)"
-      stroke="rgba(70, 130, 180, 0.8)"
+      stroke="#3B82F6"
+      dash={[4, 4]}
       strokeWidth={1}
-      dash={[2, 2]}
-      listening={false}
+      fill="rgba(59, 130, 246, 0.3)"
+      opacity={0.9}
     />
   );
 }

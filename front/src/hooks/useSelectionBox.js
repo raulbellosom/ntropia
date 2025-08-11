@@ -63,8 +63,15 @@ export default function useSelectionBox({
         let shapeLeft, shapeRight, shapeTop, shapeBottom;
 
         const layer = layers.find((l) => l.id === shape.layerId);
-        // No seleccionar si la capa está bloqueada o la shape está bloqueada
-        if ((layer && layer.locked) || shape.locked) return false;
+        // No seleccionar si:
+        // - La capa está bloqueada o invisible
+        // - La shape está bloqueada o invisible
+        if (
+          (layer && (layer.locked || layer.visible === false)) ||
+          shape.locked ||
+          shape.visible === false
+        )
+          return false;
 
         switch (shape.type) {
           case "rect":
