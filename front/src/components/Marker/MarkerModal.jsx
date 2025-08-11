@@ -9,11 +9,14 @@ import {
   Droplet,
   X,
   XCircle,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useEditMode } from "../../hooks/useEditMode";
 import ImageWithDirectusUrl from "../common/ImageWithDirectusUrl";
 import { useUploadFile } from "../../hooks/useFiles";
 import { useUpdateShape } from "../../hooks/useShapes";
+import { toast } from "react-hot-toast";
 
 export default function MarkerModal({
   shapeId,
@@ -39,6 +42,38 @@ export default function MarkerModal({
   const [externalLink, setExternalLink] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    if (externalLink) {
+      navigator.clipboard
+        .writeText(externalLink)
+        .then(() => {
+          setIsCopied(true);
+          setTimeout(() => setIsCopied(false), 2000); // Reset después de 2 segundos
+          toast.success("Enlace copiado al portapapeles", {
+            duration: 2000,
+            icon: "📋",
+            style: {
+              borderRadius: "1rem",
+              background: "#333",
+              color: "#fff",
+            },
+          });
+        })
+        .catch(() => {
+          toast.error("No se pudo copiar el enlace", {
+            duration: 2000,
+            icon: "❌",
+            style: {
+              borderRadius: "1rem",
+              background: "#333",
+              color: "#fff",
+            },
+          });
+        });
+    }
+  };
 
   // --- Para zoom ---
   const [zoom, setZoom] = useState(1);
@@ -315,20 +350,35 @@ export default function MarkerModal({
             <label className="block text-sm font-medium">Enlace Externo</label>
             {viewOnly ? (
               <div className="p-2 rounded bg-slate-50 border-b border-slate-200">
-                {externalLink ? (
-                  <a
-                    href={externalLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {externalLink}
-                  </a>
-                ) : (
-                  <span className="italic text-slate-400">
-                    Sin enlace externo
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {externalLink ? (
+                    <>
+                      <a
+                        href={externalLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline flex-1"
+                      >
+                        {externalLink}
+                      </a>
+                      <button
+                        onClick={handleCopyLink}
+                        className={`p-1.5 rounded-md transition-colors ${
+                          isCopied
+                            ? "text-green-500 bg-green-50 hover:bg-green-100"
+                            : "text-slate-500 hover:bg-slate-100"
+                        }`}
+                        title={isCopied ? "¡Copiado!" : "Copiar enlace"}
+                      >
+                        {isCopied ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="italic text-slate-400">
+                      Sin enlace externo
+                    </span>
+                  )}
+                </div>
               </div>
             ) : (
               <input
