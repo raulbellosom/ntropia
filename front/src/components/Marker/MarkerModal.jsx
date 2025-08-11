@@ -93,6 +93,41 @@ export default function MarkerModal({
     }
   }, [marker]);
 
+  // Keyboard navigation para lightbox
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+
+    const handleKey = (e) => {
+      if (e.key === "Escape") {
+        setLightboxIndex(null);
+        setZoom(1);
+        setOffset({ x: 0, y: 0 });
+      } else if (e.key === "ArrowLeft" && images.length > 1) {
+        setLightboxIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+        setZoom(1);
+        setOffset({ x: 0, y: 0 });
+      } else if (e.key === "ArrowRight" && images.length > 1) {
+        setLightboxIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+        setZoom(1);
+        setOffset({ x: 0, y: 0 });
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [lightboxIndex, images.length]);
+
+  // Bloquear scroll del body cuando el lightbox está abierto
+  useEffect(() => {
+    if (lightboxIndex !== null) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [lightboxIndex]);
+
   // Auto-save cuando cambien los datos (opcional, para UX mejorada)
   useEffect(() => {
     if (marker && !viewOnly) {
@@ -245,29 +280,107 @@ export default function MarkerModal({
     setOffset({ x: 0, y: 0 });
   };
 
-  // --- Touch handlers para drag en móvil ---
-  const handleTouchStart = (e) => {
-    if (e.touches.length === 1 && zoom > 1) {
-      dragging.current = true;
-      dragStart.current = {
-        x: e.touches[0].clientX,
-        y: e.touches[0].clientY,
-      };
-      offsetStart.current = { ...offset };
-    }
-  };
+  // --- Touch handlers con soporte para swipe y zoom ---
+  const [touchState, setTouchState] = useState(null);
+  const lastTouchRef = useRef({ x: 0, y: 0 });
 
-  const handleTouchMove = (e) => {
-    if (dragging.current && e.touches.length === 1) {
-      setOffset({
-        x: offsetStart.current.x + (e.touches[0].clientX - dragStart.current.x),
-        y: offsetStart.current.y + (e.touches[0].clientY - dragStart.current.y),
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      // Single touch - potencial swipe o pan
+      const touch = e.touches[0];
+      setTouchState({
+        mode: "tap",
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startTime: Date.now(),
+      });
+      lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
+
+      if (zoom > 1) {
+        dragging.current = true;
+        dragStart.current = { x: touch.clientX, y: touch.clientY };
+        offsetStart.current = { ...offset };
+      }
+    } else if (e.touches.length === 2) {
+      // Pinch zoom
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const dist = Math.hypot(
+        touch1.clientX - touch2.clientX,
+        touch1.clientY - touch2.clientY
+      );
+      setTouchState({
+        mode: "pinch",
+        startDist: dist,
+        startZoom: zoom,
       });
     }
   };
 
+  const handleTouchMove = (e) => {
+    if (!touchState) return;
+
+    if (touchState.mode === "tap" && e.touches.length === 1) {
+      const touch = e.touches[0];
+      lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
+
+      if (zoom > 1) {
+        // Pan si estamos con zoom
+        e.preventDefault();
+        setOffset({
+          x: offsetStart.current.x + (touch.clientX - dragStart.current.x),
+          y: offsetStart.current.y + (touch.clientY - dragStart.current.y),
+        });
+      } else {
+        // Detectar swipe
+        const dx = touch.clientX - touchState.startX;
+        const dy = touch.clientY - touchState.startY;
+
+        // Si es claramente horizontal y suficientemente largo
+        if (Math.abs(dx) > 40 && Math.abs(dy) < 30) {
+          e.preventDefault();
+        }
+      }
+    } else if (touchState.mode === "pinch" && e.touches.length === 2) {
+      // Calcular nuevo zoom basado en la distancia entre dedos
+      e.preventDefault();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const dist = Math.hypot(
+        touch1.clientX - touch2.clientX,
+        touch1.clientY - touch2.clientY
+      );
+
+      const scale = dist / touchState.startDist;
+      const nextZoom = Math.max(1, Math.min(4, touchState.startZoom * scale));
+      setZoom(nextZoom);
+    }
+  };
+
   const handleTouchEnd = () => {
+    if (!touchState) return;
+
+    if (touchState.mode === "tap" && zoom === 1) {
+      // Verificar si fue un swipe
+      const dx = lastTouchRef.current.x - touchState.startX;
+      const dy = lastTouchRef.current.y - touchState.startY;
+      const duration = Date.now() - touchState.startTime;
+
+      if (Math.abs(dx) > 40 && Math.abs(dy) < 30 && duration < 300) {
+        if (dx < 0) {
+          // Swipe izquierda -> siguiente
+          setLightboxIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+        } else {
+          // Swipe derecha -> anterior
+          setLightboxIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+        }
+        setZoom(1);
+        setOffset({ x: 0, y: 0 });
+      }
+    }
+
     dragging.current = false;
+    setTouchState(null);
   };
 
   return (
@@ -528,109 +641,128 @@ export default function MarkerModal({
       </ModalWrapper>
       {lightboxIndex !== null && images[lightboxIndex] && (
         <div
-          className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/90"
-          style={{ cursor: zoom > 1 ? "grab" : "zoom-in" }}
-          tabIndex={0}
-          onClick={(e) => {
-            if (
-              lightboxContentRef.current &&
-              !lightboxContentRef.current.contains(e.target)
-            ) {
-              setLightboxIndex(null);
-            }
-          }}
+          className="absolute inset-0 z-[9999]"
+          role="dialog"
+          aria-modal="true"
+          ref={lightboxContentRef}
         >
-          {/* Botón cerrar */}
-          <button
-            className="absolute cursor-pointer top-4 right-4 z-50 text-white bg-black/30 rounded-full p-2 hover:bg-black/50"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxIndex(null);
-              setZoom(1); // Resetear zoom al cerrar
-              setOffset({ x: 0, y: 0 }); // Resetear posición
-            }}
-          >
-            <XCircle size={28} />
-          </button>
-
-          {/* Botón anterior */}
-          {images.length > 1 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setLightboxIndex((prev) =>
-                  prev > 0 ? prev - 1 : images.length - 1
-                );
-                // Resetear zoom y posición al cambiar de imagen
-                setZoom(1);
-                setOffset({ x: 0, y: 0 });
-              }}
-              className="absolute cursor-pointer left-4 top-1/2 transform -translate-y-1/2 z-50 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full"
-            >
-              <ChevronLeftCircle size={28} />
-            </button>
-          )}
-
-          {/* Botón siguiente */}
-          {images.length > 1 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setLightboxIndex((prev) =>
-                  prev < images.length - 1 ? prev + 1 : 0
-                );
-                // Resetear zoom y posición al cambiar de imagen
-                setZoom(1);
-                setOffset({ x: 0, y: 0 });
-              }}
-              className="absolute cursor-pointer right-4 top-1/2 transform -translate-y-1/2 z-50 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full"
-            >
-              <ChevronRightCircle size={28} />
-            </button>
-          )}
-
-          {/* Contenedor de imagen */}
+          {/* Backdrop: cierra al tocar afuera */}
           <div
-            ref={lightboxContentRef}
-            className="relative"
-            style={{
-              width: "100vw",
-              height: "100vh",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "visible",
-              touchAction: "none",
+            className="absolute inset-0 bg-black/90 z-[10000]"
+            onClick={() => {
+              setLightboxIndex(null);
+              setZoom(1);
+              setOffset({ x: 0, y: 0 });
             }}
-            onWheel={handleWheel}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onDoubleClick={handleDoubleClick}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            <ImageWithDirectusUrl
-              src={images[lightboxIndex]}
-              alt={`full-${lightboxIndex}`}
-              className="select-none rounded-lg shadow-2xl"
-              style={{
-                width: "auto",
-                height: "auto",
-                transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-                transition: dragging.current ? "none" : "transform 0.15s",
-                userSelect: "none",
-                cursor: zoom > 1 ? "grab" : "zoom-in",
-                margin: "auto",
-                maxWidth: "90vw",
-                maxHeight: "90vh",
-                background: "#111",
+            style={{ pointerEvents: "auto", touchAction: "auto" }}
+          />
+
+          {/* Controles fijos relativos a la pantalla */}
+          <div className="fixed inset-0 pointer-events-none z-[11000]">
+            {/* Botón cerrar */}
+            <button
+              className="pointer-events-auto absolute top-8 right-8 text-white bg-black/30 rounded-full p-3 hover:bg-black/50 shadow-lg"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex(null);
+                setZoom(1);
+                setOffset({ x: 0, y: 0 });
               }}
-              draggable={false}
-              onDragStart={(e) => e.preventDefault()}
-            />
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              style={{ touchAction: "manipulation" }}
+              aria-label="Cerrar"
+            >
+              <XCircle size={32} />
+            </button>
+
+            {/* Botones navegación */}
+            {images.length > 1 && (
+              <>
+                <button
+                  className="pointer-events-auto absolute left-8 top-1/2 transform -translate-y-1/2 z-50 bg-black/40 hover:bg-black/60 text-white p-3 rounded-full shadow-lg"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((prev) =>
+                      prev > 0 ? prev - 1 : images.length - 1
+                    );
+                    setZoom(1);
+                    setOffset({ x: 0, y: 0 });
+                  }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                  style={{ touchAction: "manipulation" }}
+                  aria-label="Anterior"
+                >
+                  <ChevronLeftCircle size={32} />
+                </button>
+
+                <button
+                  className="pointer-events-auto absolute right-8 top-1/2 transform -translate-y-1/2 z-50 bg-black/40 hover:bg-black/60 text-white p-3 rounded-full shadow-lg"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxIndex((prev) =>
+                      prev < images.length - 1 ? prev + 1 : 0
+                    );
+                    setZoom(1);
+                    setOffset({ x: 0, y: 0 });
+                  }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                  style={{ touchAction: "manipulation" }}
+                  aria-label="Siguiente"
+                >
+                  <ChevronRightCircle size={32} />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Viewer: SOLO aquí van los handlers de gestos */}
+          <div
+            className="fixed z-[10001] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full"
+            style={{
+              maxWidth: "95vw",
+              maxHeight: "85vh",
+              overscrollBehavior: "contain",
+            }}
+          >
+            <div
+              id="image-gesture-layer"
+              className="relative w-full h-full flex items-center justify-center"
+              style={{
+                touchAction: "none",
+                cursor: zoom > 1 ? "grab" : "zoom-in",
+              }}
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onDoubleClick={handleDoubleClick}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              <ImageWithDirectusUrl
+                src={images[lightboxIndex]}
+                alt={`full-${lightboxIndex}`}
+                className="select-none rounded-lg shadow-2xl"
+                style={{
+                  width: "auto",
+                  height: "auto",
+                  transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                  transition: dragging.current ? "none" : "transform 0.15s",
+                  userSelect: "none",
+                  margin: "auto",
+                  maxWidth: "90vw",
+                  maxHeight: "90vh",
+                  background: "#111",
+                }}
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
+              />
+            </div>
           </div>
         </div>
       )}
