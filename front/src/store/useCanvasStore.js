@@ -13,6 +13,35 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// ----------------- Helpers de orden por capa -----------------
+function getLayerShapes(shapes, layerId) {
+  return shapes.filter((s) => s.layerId === layerId && !s._toDelete);
+}
+
+function normalizeLayerOrders(shapes, layerId) {
+  // Reindexa 0..N-1 por order asc (back→front)
+  const out = [...shapes];
+  const layer = getLayerShapes(out, layerId)
+    .slice()
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+  layer.forEach((s, i) => {
+    const idx = out.findIndex((x) => x.id === s.id);
+    if (idx !== -1) {
+      out[idx] = { ...out[idx], order: i };
+    }
+  });
+  return out;
+}
+
+function ensureNumericOrder(shapes) {
+  // Asegura Number(order) en todas las shapes
+  return shapes.map((s) => ({
+    ...s,
+    order: typeof s.order === "number" ? s.order : Number(s.order) || 0,
+  }));
+}
+
 export const useCanvasStore = create((set, get) => ({
   // ---- Estado base ----
   mode: "view", // "view" o "edit"
@@ -37,6 +66,7 @@ export const useCanvasStore = create((set, get) => ({
       visible: true,
       locked: false,
       opacity: 1,
+      order: 0,
       _isNew: false,
       _dirty: false,
       _toDelete: false,
@@ -52,38 +82,55 @@ export const useCanvasStore = create((set, get) => ({
   future: [],
 
   // Tamaño del canvas
-  canvasWidth: 1200, // o el valor que quieras por defecto
-  canvasHeight: 900, // o el valor que quieras por defecto
+  canvasWidth: 1200,
+  canvasHeight: 900,
 
-  // ==== Métodos de persistencia y sincronización ====
-
-  /** Sobrescribe todas las capas con las que trae el backend (flags en false) */
+  // ==== Persistencia / Sync ====
   setAllLayers: (layersFromBackend) =>
     set({
-      layers: layersFromBackend.map((l, idx) => ({
-        ...l,
-        _isNew: false,
-        _dirty: false,
-        _toDelete: false,
-        name: l.name || `Capa ${idx + 1}`,
-      })),
+      layers: layersFromBackend
+        .map((l, idx) => ({
+          ...l,
+          order: typeof l.order === "number" ? l.order : idx,
+          _isNew: false,
+          _dirty: false,
+          _toDelete: false,
+          name: l.name || `Capa ${idx + 1}`,
+        }))
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     }),
 
-  /** Sobrescribe todas las figuras con las del backend (flags en false) */
   setAllShapes: (shapesFromBackend) =>
-    set({
-      shapes: shapesFromBackend.map((s) => ({
+    set(() => {
+      // Mapear y asegurar order numérico
+      let mapped = shapesFromBackend.map((s) => ({
         ...s,
-        // 🔄 Mapear 'data' del backend a 'props' del frontend
+        order: typeof s.order === "number" ? s.order : Number(s.order) || 0,
+        // 🔄 backend 'data' -> frontend 'props'
         props: s.data || s.props || {},
         layerId: s.layer_id || s.layerId,
         _isNew: false,
         _dirty: false,
         _toDelete: false,
-      })),
+      }));
+
+      // Normalizar por capa para evitar duplicados / undefined
+      const byLayer = mapped.reduce((acc, s) => {
+        (acc[s.layerId] ||= []).push(s);
+        return acc;
+      }, {});
+      Object.keys(byLayer).forEach((lid) => {
+        const layer = byLayer[lid]
+          .slice()
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        layer.forEach((s, i) => {
+          s.order = i; // 0..N-1
+        });
+      });
+
+      return { shapes: mapped };
     }),
 
-  /** Marca un layer o shape como nuevo */
   markAsNew: (type, id) =>
     set((state) => ({
       [type]: state[type].map((item) =>
@@ -93,7 +140,6 @@ export const useCanvasStore = create((set, get) => ({
       ),
     })),
 
-  /** Marca un layer o shape como editado */
   markAsDirty: (type, id) =>
     set((state) => ({
       [type]: state[type].map((item) =>
@@ -101,7 +147,6 @@ export const useCanvasStore = create((set, get) => ({
       ),
     })),
 
-  /** Marca un layer o shape como eliminado (luego de guardar lo borras del store) */
   markAsToDelete: (type, id) =>
     set((state) => ({
       [type]: state[type].map((item) =>
@@ -109,7 +154,6 @@ export const useCanvasStore = create((set, get) => ({
       ),
     })),
 
-  /** Limpia los flags después de sincronizar con backend */
   clearAllFlags: () =>
     set((state) => ({
       layers: state.layers.map((l) => ({
@@ -182,15 +226,14 @@ export const useCanvasStore = create((set, get) => ({
     });
   },
 
-  // ---- Modo de edición ----
+  // ---- Modo ----
   setMode: (mode) => {
-    // Si cambiamos a modo view, limpiar selecciones
     if (mode === "view") {
       set({
         mode,
         selectedShapeId: null,
         selectedShapeIds: [],
-        tool: "select", // resetear herramienta también
+        tool: "select",
       });
     } else {
       set({ mode });
@@ -200,7 +243,6 @@ export const useCanvasStore = create((set, get) => ({
   toggleMode: () =>
     set((state) => {
       const newMode = state.mode === "edit" ? "view" : "edit";
-      // Si cambiamos a modo view, limpiar selecciones
       if (newMode === "view") {
         return {
           mode: newMode,
@@ -212,9 +254,8 @@ export const useCanvasStore = create((set, get) => ({
       return { mode: newMode };
     }),
 
-  // ---- Métodos canvas ----
+  // ---- Canvas ----
   setTool: (tool) => {
-    // Si cambiamos a hand tool, limpiar selecciones para evitar movimiento accidental
     if (tool === "hand") {
       set({ tool, selectedShapeId: null, selectedShapeIds: [] });
     } else {
@@ -226,7 +267,6 @@ export const useCanvasStore = create((set, get) => ({
       set({ selectedShapeId: id, selectedShapeIds: id ? [id] : [] });
   },
 
-  // Métodos para selección múltiple
   addToSelection: (id) => {
     const current = get().selectedShapeIds;
     if (!current.includes(id)) {
@@ -270,7 +310,6 @@ export const useCanvasStore = create((set, get) => ({
   setZoom: (zoom) => set({ zoom }),
   setPan: (pan) => set({ pan }),
 
-  // Función para establecer la referencia del Stage
   setStageRef: (stageRef) => set({ stageRef }),
   zoomIn: () => set((state) => ({ zoom: state.zoom * 1.2 })),
   zoomOut: () => set((state) => ({ zoom: state.zoom / 1.2 })),
@@ -298,7 +337,6 @@ export const useCanvasStore = create((set, get) => ({
     get().saveToHistory();
     const id = generateId();
     const layers = get().layers || [];
-    // Buscar el mayor número usado en capas tipo "Capa X"
     let maxNum = 0;
     const capaRegex = /^Capa (\d+)$/i;
     layers.forEach((l) => {
@@ -318,7 +356,7 @@ export const useCanvasStore = create((set, get) => ({
           visible: true,
           locked: false,
           opacity: 1,
-          order: state.layers.length, // 👈 agrega el campo order aquí
+          order: state.layers.length,
           _isNew: true,
           _dirty: false,
           _toDelete: false,
@@ -365,27 +403,20 @@ export const useCanvasStore = create((set, get) => ({
           : state.activeLayerId,
     }));
   },
-  /** Añade una capa que viene del servidor */
+
   addRemoteLayer: (layer) =>
     set((state) => {
-      // Validación: asegurar que tenga id
       if (!layer.id) {
         console.warn("🔥 Layer sin id recibido:", layer);
-        return state; // 👈 Devolver estado actual sin cambios
+        return state;
       }
-      // si ya existe, no hagas nada
       if (state.layers.find((l) => l.id === layer.id)) {
-        return state; // 👈 Devolver estado actual sin cambios
+        return state;
       }
       return {
         layers: [
           ...state.layers,
-          {
-            ...layer,
-            _isNew: false,
-            _dirty: false,
-            _toDelete: false,
-          },
+          { ...layer, _isNew: false, _dirty: false, _toDelete: false },
         ],
       };
     }),
@@ -393,15 +424,10 @@ export const useCanvasStore = create((set, get) => ({
   updateRemoteLayer: (layer) => {
     set((state) => {
       const layerIndex = state.layers.findIndex((l) => l.id === layer.id);
-
       if (layerIndex === -1) {
         console.warn("❌ Layer no encontrado:", layer.id);
         return state;
       }
-
-      const currentLayer = state.layers[layerIndex];
-
-      // Crear layer actualizado
       const updatedLayer = {
         ...layer,
         visible: Boolean(layer.visible),
@@ -410,22 +436,11 @@ export const useCanvasStore = create((set, get) => ({
         _dirty: false,
         _toDelete: false,
       };
-
-      // Crear nuevo array con el layer actualizado
       const newLayers = [...state.layers];
       newLayers[layerIndex] = updatedLayer;
+      newLayers.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-      // Ordenar por order
-      newLayers.sort((a, b) => a.order - b.order);
-
-      const newState = {
-        ...state,
-        layers: newLayers,
-        // Timestamp para forzar re-render
-        _lastLayerUpdate: Date.now(),
-      };
-
-      return newState;
+      return { ...state, layers: newLayers, _lastLayerUpdate: Date.now() };
     });
   },
 
@@ -444,50 +459,33 @@ export const useCanvasStore = create((set, get) => ({
       const idx = state.layers.findIndex((l) => l.id === layerId);
       if (idx <= 0) return {};
       const newLayers = [...state.layers];
-
-      // Intercambiar posiciones
       [newLayers[idx - 1], newLayers[idx]] = [
         newLayers[idx],
         newLayers[idx - 1],
       ];
-
-      // Solo actualizar el order de los dos layers intercambiados
       newLayers[idx - 1].order = idx - 1;
       newLayers[idx].order = idx;
-
-      // Marcar como dirty solo los intercambiados
       if (!newLayers[idx - 1]._isNew) newLayers[idx - 1]._dirty = true;
       if (!newLayers[idx]._isNew) newLayers[idx]._dirty = true;
-
-      return {
-        layers: newLayers,
-      };
+      return { layers: newLayers };
     });
   },
+
   moveLayerDown: (layerId) => {
     get().saveToHistory();
     set((state) => {
       const idx = state.layers.findIndex((l) => l.id === layerId);
       if (idx === -1 || idx === state.layers.length - 1) return {};
       const newLayers = [...state.layers];
-
-      // Intercambiar posiciones
       [newLayers[idx], newLayers[idx + 1]] = [
         newLayers[idx + 1],
         newLayers[idx],
       ];
-
-      // Solo actualizar el order de los dos layers intercambiados
       newLayers[idx].order = idx;
       newLayers[idx + 1].order = idx + 1;
-
-      // Marcar como dirty solo los intercambiados
       if (!newLayers[idx]._isNew) newLayers[idx]._dirty = true;
       if (!newLayers[idx + 1]._isNew) newLayers[idx + 1]._dirty = true;
-
-      return {
-        layers: newLayers,
-      };
+      return { layers: newLayers };
     });
   },
 
@@ -501,6 +499,7 @@ export const useCanvasStore = create((set, get) => ({
       ),
     }));
   },
+
   renameLayer: (layerId, newName) =>
     set((state) => ({
       layers: state.layers.map((l) =>
@@ -515,21 +514,32 @@ export const useCanvasStore = create((set, get) => ({
     get().saveToHistory();
     const id = generateId();
     const state = get();
+
     const type = shape.type || "Shape";
     const shapesOfLayer = state.shapes.filter(
-      (s) => s.layerId === shape.layerId
+      (s) => s.layerId === shape.layerId && !s._toDelete
     );
-    const order =
-      typeof shape.order === "number" ? shape.order : shapesOfLayer.length;
+    const maxOrder =
+      shapesOfLayer.length > 0
+        ? Math.max(
+            ...shapesOfLayer.map((s) =>
+              typeof s.order === "number" ? s.order : Number(s.order) || 0
+            )
+          )
+        : -1;
+
+    const order = typeof shape.order === "number" ? shape.order : maxOrder + 1; // 🔑 nuevas al frente
+
     const shapesOfType = state.shapes.filter((s) => s.type === type);
     const newName = `${capitalize(type)} ${shapesOfType.length + 1}`;
-    set((state) => ({
+
+    set((state2) => ({
       shapes: [
-        ...state.shapes,
+        ...state2.shapes,
         {
           id,
           ...shape,
-          order, // asegúrate que siempre tiene order
+          order,
           name: shape.name || newName,
           _isNew: true,
           _dirty: false,
@@ -584,165 +594,170 @@ export const useCanvasStore = create((set, get) => ({
 
   addRemoteShape: (shape) =>
     set((state) => {
-      // Validación: asegurar que tenga id
       if (!shape.id) {
         console.warn("🔥 Shape sin id recibido:", shape);
-        return state; // 👈 Devolver estado actual sin cambios
+        return state;
       }
+      const layerId = shape.layer_id || shape.layerId;
+      const current = ensureNumericOrder(state.shapes);
+      const layerShapes = getLayerShapes(current, layerId);
+      const maxOrder =
+        layerShapes.length > 0
+          ? Math.max(...layerShapes.map((s) => Number(s.order) || 0))
+          : -1;
+
+      const incomingOrder =
+        typeof shape.order === "number"
+          ? shape.order
+          : Number(shape.order) || maxOrder + 1;
+
+      const next = [
+        ...current,
+        {
+          ...shape,
+          order: incomingOrder,
+          props: shape.data || shape.props || {},
+          layerId,
+          _isNew: false,
+          _dirty: false,
+          _toDelete: false,
+        },
+      ];
+
       return {
-        shapes: [
-          ...state.shapes,
-          {
-            ...shape,
-            // 🔄 Mapear 'data' del backend a 'props' del frontend
-            props: shape.data || shape.props || {},
-            layerId: shape.layer_id || shape.layerId,
-            _isNew: false,
-            _dirty: false,
-            _toDelete: false,
-          },
-        ],
+        shapes: normalizeLayerOrders(next, layerId),
       };
     }),
 
-  /** Reemplaza la shape completa, ideal para eventos de update desde el servidor */
   updateRemoteShape: (shape) =>
-    set((state) => ({
-      shapes: state.shapes.map((s) =>
+    set((state) => {
+      const layerId = shape.layer_id || shape.layerId;
+      const next = state.shapes.map((s) =>
         s.id === shape.id
           ? {
               ...shape,
-              // 🔄 Mapear 'data' del backend a 'props' del frontend
+              order:
+                typeof shape.order === "number"
+                  ? shape.order
+                  : Number(shape.order) || 0,
               props: shape.data || shape.props || {},
-              layerId: shape.layer_id || shape.layerId,
+              layerId,
               _isNew: false,
               _dirty: false,
               _toDelete: false,
             }
           : s
-      ),
-    })),
+      );
+      return { shapes: normalizeLayerOrders(next, layerId) };
+    }),
 
-  /** Elimina del array la shape con id dado, para eventos de delete en tiempo real */
   removeRemoteShape: (id) =>
     set((state) => ({
       shapes: state.shapes.filter((s) => s.id !== id),
-      // además limpiamos selección si estaba activa
       selectedShapeIds: state.selectedShapeIds.filter((sid) => sid !== id),
       selectedShapeId:
         state.selectedShapeId === id ? null : state.selectedShapeId,
     })),
 
+  // ---- Z-index por order ----
   bringShapeToFront: (id) => {
     get().saveToHistory();
     set((state) => {
-      const shapes = [...state.shapes];
-      const idx = shapes.findIndex((s) => s.id === id);
-      if (idx === -1) return {};
-      const [shape] = shapes.splice(idx, 1);
-      shapes.push(shape);
-      return {
-        shapes: shapes.map((s) => ({
-          ...s,
-          _dirty: !s._isNew ? true : s._dirty,
-        })),
-      };
+      const shapes = ensureNumericOrder([...state.shapes]);
+      const s = shapes.find((x) => x.id === id);
+      if (!s) return {};
+
+      const layerId = s.layerId;
+      const layerShapes = getLayerShapes(shapes, layerId);
+      const maxOrder =
+        layerShapes.length > 0
+          ? Math.max(...layerShapes.map((x) => Number(x.order) || 0))
+          : -1;
+
+      s.order = maxOrder + 1; // poner arriba
+      if (!s._isNew) s._dirty = true;
+
+      const normalized = normalizeLayerOrders(shapes, layerId);
+      return { shapes: normalized };
     });
   },
+
   sendShapeToBack: (id) => {
     get().saveToHistory();
     set((state) => {
-      const shapes = [...state.shapes];
-      const idx = shapes.findIndex((s) => s.id === id);
-      if (idx === -1) return {};
-      const [shape] = shapes.splice(idx, 1);
-      shapes.unshift(shape);
-      return {
-        shapes: shapes.map((s) => ({
-          ...s,
-          _dirty: !s._isNew ? true : s._dirty,
-        })),
-      };
+      const shapes = ensureNumericOrder([...state.shapes]);
+      const s = shapes.find((x) => x.id === id);
+      if (!s) return {};
+
+      const layerId = s.layerId;
+      // Ponerlo como el más bajo y luego normalizar
+      s.order = -1;
+      if (!s._isNew) s._dirty = true;
+
+      const normalized = normalizeLayerOrders(shapes, layerId);
+      return { shapes: normalized };
     });
   },
+
   bringShapeForward: (id) => {
     get().saveToHistory();
     set((state) => {
-      const shapes = [...state.shapes];
-      const shape = shapes.find((s) => s.id === id);
-      if (!shape) return {};
+      const shapes = ensureNumericOrder([...state.shapes]);
+      const s = shapes.find((x) => x.id === id);
+      if (!s) return {};
 
-      // Filtrar shapes de la misma capa
-      const layerShapes = shapes.filter(
-        (s) => s.layerId === shape.layerId && !s._toDelete
-      );
-      const currentIndex = layerShapes.findIndex((s) => s.id === id);
+      const sameLayer = shapes
+        .filter((x) => x.layerId === s.layerId && !x._toDelete)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)); // back→front
 
-      if (currentIndex === -1 || currentIndex === layerShapes.length - 1)
-        return {};
+      const idx = sameLayer.findIndex((x) => x.id === id);
+      if (idx === -1 || idx === sameLayer.length - 1) return {};
 
-      // Intercambiar con la shape siguiente
-      const nextShape = layerShapes[currentIndex + 1];
-      const shapeIdx = shapes.findIndex((s) => s.id === id);
-      const nextShapeIdx = shapes.findIndex((s) => s.id === nextShape.id);
+      const next = sameLayer[idx + 1]; // el de adelante
+      const o1 = Number(s.order) || 0;
+      const o2 = Number(next.order) || 0;
+      s.order = o2;
+      next.order = o1;
 
-      [shapes[shapeIdx], shapes[nextShapeIdx]] = [
-        shapes[nextShapeIdx],
-        shapes[shapeIdx],
-      ];
+      if (!s._isNew) s._dirty = true;
+      if (!next._isNew) next._dirty = true;
 
-      // Actualizar order fields y marcar como dirty solo las intercambiadas
-      shapes[shapeIdx].order = currentIndex + 1;
-      shapes[nextShapeIdx].order = currentIndex;
-      if (!shapes[shapeIdx]._isNew) shapes[shapeIdx]._dirty = true;
-      if (!shapes[nextShapeIdx]._isNew) shapes[nextShapeIdx]._dirty = true;
-
-      return {
-        shapes,
-      };
+      const normalized = normalizeLayerOrders(shapes, s.layerId);
+      return { shapes: normalized };
     });
   },
+
   sendShapeBackward: (id) => {
     get().saveToHistory();
     set((state) => {
-      const shapes = [...state.shapes];
-      const shape = shapes.find((s) => s.id === id);
-      if (!shape) return {};
+      const shapes = ensureNumericOrder([...state.shapes]);
+      const s = shapes.find((x) => x.id === id);
+      if (!s) return {};
 
-      // Filtrar shapes de la misma capa
-      const layerShapes = shapes.filter(
-        (s) => s.layerId === shape.layerId && !s._toDelete
-      );
-      const currentIndex = layerShapes.findIndex((s) => s.id === id);
+      const sameLayer = shapes
+        .filter((x) => x.layerId === s.layerId && !x._toDelete)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)); // back→front
 
-      if (currentIndex <= 0) return {};
+      const idx = sameLayer.findIndex((x) => x.id === id);
+      if (idx <= 0) return {};
 
-      // Intercambiar con la shape anterior
-      const prevShape = layerShapes[currentIndex - 1];
-      const shapeIdx = shapes.findIndex((s) => s.id === id);
-      const prevShapeIdx = shapes.findIndex((s) => s.id === prevShape.id);
+      const prev = sameLayer[idx - 1];
+      const o1 = Number(s.order) || 0;
+      const o2 = Number(prev.order) || 0;
+      s.order = o2;
+      prev.order = o1;
 
-      [shapes[shapeIdx], shapes[prevShapeIdx]] = [
-        shapes[prevShapeIdx],
-        shapes[shapeIdx],
-      ];
+      if (!s._isNew) s._dirty = true;
+      if (!prev._isNew) prev._dirty = true;
 
-      // Actualizar order fields y marcar como dirty solo las intercambiadas
-      shapes[shapeIdx].order = currentIndex - 1;
-      shapes[prevShapeIdx].order = currentIndex;
-      if (!shapes[shapeIdx]._isNew) shapes[shapeIdx]._dirty = true;
-      if (!shapes[prevShapeIdx]._isNew) shapes[prevShapeIdx]._dirty = true;
-
-      return {
-        shapes,
-      };
+      const normalized = normalizeLayerOrders(shapes, s.layerId);
+      return { shapes: normalized };
     });
   },
 
   copyShape: (id) => {
     const shape = get().shapes.find((s) => s.id === id);
     if (shape) {
-      // Guarda una copia profunda, sin el id
       set({
         clipboardShape: JSON.parse(JSON.stringify({ ...shape, id: undefined })),
       });
@@ -752,18 +767,15 @@ export const useCanvasStore = create((set, get) => ({
   pasteShape: () => {
     const shape = get().clipboardShape;
     if (shape) {
-      // Opcional: mueve ligeramente la posición para no superponer
       let newProps = { ...shape.props };
       if (typeof newProps.x === "number") newProps.x += 30;
       if (typeof newProps.y === "number") newProps.y += 30;
-      // Si es línea o free, mueve todos los puntos
       if (Array.isArray(newProps.points)) {
         for (let i = 0; i < newProps.points.length; i += 2) {
           newProps.points[i] += 30;
           newProps.points[i + 1] += 30;
         }
       }
-      // Usa el método estándar para agregar shapes (esto también guarda en history)
       get().addShape({
         ...shape,
         props: newProps,
@@ -777,15 +789,11 @@ export const useCanvasStore = create((set, get) => ({
     const target = shapes.find((s) => s.id === id);
     if (!target) return;
 
-    // Nueva figura con props del clipboard, pero...
     let newProps = { ...clipboardShape.props };
-    // drop id from clipboardShape
     delete newProps.id;
-    // -- Mantén posición y medidas originales
     newProps.x = target.props.x;
     newProps.y = target.props.y;
 
-    // Tamaño
     if ("width" in target.props) newProps.width = target.props.width;
     if ("height" in target.props) newProps.height = target.props.height;
     if ("radius" in target.props) newProps.radius = target.props.radius;
@@ -794,14 +802,12 @@ export const useCanvasStore = create((set, get) => ({
     if ("scaleX" in target.props) newProps.scaleX = target.props.scaleX;
     if ("scaleY" in target.props) newProps.scaleY = target.props.scaleY;
 
-    // Texto y nombre si aplica
     const name = target.name || clipboardShape.name;
     if ("text" in target.props) newProps.text = target.props.text;
 
-    // Elimina el shape original y agrega el nuevo (nuevo id, misma capa)
     removeShape(id);
     addShape({
-      id: generateId(), // nuevo id
+      id: generateId(),
       ...clipboardShape,
       layerId: target.layerId,
       name,
@@ -819,6 +825,7 @@ export const useCanvasStore = create((set, get) => ({
       ),
     }));
   },
+
   renameShape: (shapeId, newName) =>
     set((state) => ({
       shapes: state.shapes.map((s) =>
@@ -829,7 +836,7 @@ export const useCanvasStore = create((set, get) => ({
     })),
 
   // ---- Layers panel visibility ----
-  layersPanelVisible: false,
+  layersPanelVisible: true,
   showLayersPanel: () => set({ layersPanelVisible: true }),
   hideLayersPanel: () => set({ layersPanelVisible: false }),
   toggleLayersPanel: () =>
@@ -847,8 +854,8 @@ export const useCanvasStore = create((set, get) => ({
       backgroundColor: DEFAULT_BACKGROUND_COLOR,
       canvasWidth: 1200,
       canvasHeight: 900,
-      layersPanelVisible: false, // 👈 oculta el panel de capas
-      mode: "view", // o como quieras el estado inicial
+      layersPanelVisible: true,
+      mode: "view",
       tool: "select",
       pan: { x: 0, y: 0 },
       zoom: 1,

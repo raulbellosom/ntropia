@@ -1,5 +1,5 @@
 // src/components/LayersPanel/ShapeItem.jsx
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Eye,
   EyeOff,
@@ -16,7 +16,7 @@ import { useDeleteShape, useUpdateShape } from "../../hooks/useShapes";
 
 export default function ShapeItem({
   obj,
-  idx,
+  idx, // index visual provisto por el contenedor (lo dejamos para Draggable)
   layerLocked,
   selectedShapeIds,
   setSelectedShape,
@@ -25,8 +25,8 @@ export default function ShapeItem({
   setEditingId,
   editingValue,
   setEditingValue,
-  handleRenameShape: _, // we'll override
-  objects,
+  handleRenameShape: _, // override intencional
+  objects, // viene desde el padre (no lo usamos para la lógica de order)
   isEditMode,
   setActiveLayer,
 }) {
@@ -35,6 +35,26 @@ export default function ShapeItem({
 
   const removeLocalShape = useCanvasStore((s) => s.removeShape);
   const renameLocalShape = useCanvasStore((s) => s.renameShape);
+
+  // Suscripción a las shapes para calcular estado (evita usar getState en render)
+  const allShapes = useCanvasStore((s) => s.shapes);
+
+  // Lista de la MISMA capa, ordenadas por 'order' real (asc: back→front)
+  const sameLayerOrdered = useMemo(() => {
+    return allShapes
+      .filter((s) => s.layerId === obj.layerId && !s._toDelete)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [allShapes, obj.layerId]);
+
+  // Posición del objeto actual dentro del orden real
+  const realIndex = useMemo(
+    () => sameLayerOrdered.findIndex((s) => s.id === obj.id),
+    [sameLayerOrdered, obj.id]
+  );
+
+  // En este orden: el último elemento es el "más al frente"
+  const isAtFront = realIndex === sameLayerOrdered.length - 1;
+  const isAtBack = realIndex === 0;
 
   // Handle delete (optimistic + server)
   const onDelete = (e) => {
@@ -74,112 +94,83 @@ export default function ShapeItem({
     });
   };
 
-  // Handle reorder forward/back
-  const onBringForward = () => {
-    // Obtener shapes de la capa ordenados como en la UI (mayor order primero)
-    const shapes = useCanvasStore.getState().shapes;
-    const layerShapes = shapes
+  /**
+   * Mueve la shape una posición arriba/abajo según su 'order' real.
+   * - direction: 'up' (al frente) | 'down' (al fondo)
+   * - Optimista local: usa bringShapeForward/sendShapeBackward del store
+   * - Persistencia: 2 updates cruzados (swap de orders)
+   */
+  const handleMove = (direction /* 'up' | 'down' */) => {
+    const store = useCanvasStore.getState();
+
+    // Recalcular desde el estado actual por si hubo cambios justo antes
+    const layerShapesOrdered = store.shapes
       .filter((s) => s.layerId === obj.layerId && !s._toDelete)
-      .sort((a, b) => {
-        // Manejar casos donde order puede ser undefined/null
-        const orderA = a.order ?? 0;
-        const orderB = b.order ?? 0;
-        return orderB - orderA; // Ordenar igual que en UI
-      });
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)); // back→front
 
-    const currentUIIndex = layerShapes.findIndex((s) => s.id === obj.id);
+    const i = layerShapesOrdered.findIndex((s) => s.id === obj.id);
+    if (i === -1) return;
 
-    // Traer al frente = mover hacia arriba en la lista = aumentar order
-    if (currentUIIndex > 0) {
-      const currentShape = layerShapes[currentUIIndex];
-      const targetShape = layerShapes[currentUIIndex - 1];
+    const neighbor =
+      direction === "up"
+        ? layerShapesOrdered[i + 1]
+        : layerShapesOrdered[i - 1];
 
-      // Optimistic update
-      useCanvasStore.getState().bringShapeForward(obj.id);
+    if (!neighbor) return;
 
-      // Intercambiar orders
-      updateShape.mutate({
-        id: currentShape.id,
-        data: {
-          name: currentShape.name,
-          type: currentShape.type,
-          order: targetShape.order,
-          layer_id: currentShape.layerId,
-          workspace_id: currentShape.workspace_id,
-          data: currentShape.props,
-          visible: currentShape.visible,
-        },
-      });
+    // Guardar orders actuales ANTES del swap optimista
+    const currentOrder = obj.order ?? 0;
+    const neighborOrder = neighbor.order ?? 0;
 
-      updateShape.mutate({
-        id: targetShape.id,
-        data: {
-          name: targetShape.name,
-          type: targetShape.type,
-          order: currentShape.order,
-          layer_id: targetShape.layerId,
-          workspace_id: targetShape.workspace_id,
-          data: targetShape.props,
-          visible: targetShape.visible,
-        },
-      });
+    // 1) Optimista local en Zustand (esto redibuja panel + canvas al instante)
+    if (direction === "up") {
+      store.bringShapeForward(obj.id);
+    } else {
+      store.sendShapeBackward(obj.id);
     }
+
+    // 2) Persistir ambos con swap cruzado
+    //    Nota: enviamos todos los campos que ya mandas normalmente
+    updateShape.mutate({
+      id: obj.id,
+      data: {
+        name: obj.name,
+        type: obj.type,
+        order: neighborOrder,
+        layer_id: obj.layerId,
+        workspace_id: obj.workspace_id,
+        data: obj.props,
+        visible: obj.visible,
+      },
+    });
+
+    updateShape.mutate({
+      id: neighbor.id,
+      data: {
+        name: neighbor.name,
+        type: neighbor.type,
+        order: currentOrder,
+        layer_id: neighbor.layerId,
+        workspace_id: neighbor.workspace_id,
+        data: neighbor.props,
+        visible: neighbor.visible,
+      },
+    });
   };
 
-  const onSendBackward = () => {
-    // Obtener shapes de la capa ordenados como en la UI (mayor order primero)
-    const shapes = useCanvasStore.getState().shapes;
-    const layerShapes = shapes
-      .filter((s) => s.layerId === obj.layerId && !s._toDelete)
-      .sort((a, b) => {
-        // Manejar casos donde order puede ser undefined/null
-        const orderA = a.order ?? 0;
-        const orderB = b.order ?? 0;
-        return orderB - orderA; // Ordenar igual que en UI
-      });
-
-    const currentUIIndex = layerShapes.findIndex((s) => s.id === obj.id);
-
-    // Enviar atrás = mover hacia abajo en la lista = disminuir order
-    if (currentUIIndex < layerShapes.length - 1) {
-      const currentShape = layerShapes[currentUIIndex];
-      const targetShape = layerShapes[currentUIIndex + 1];
-
-      // Optimistic update
-      useCanvasStore.getState().sendShapeBackward(obj.id);
-
-      // Intercambiar orders
-      updateShape.mutate({
-        id: currentShape.id,
-        data: {
-          name: currentShape.name,
-          type: currentShape.type,
-          order: targetShape.order,
-          layer_id: currentShape.layerId,
-          workspace_id: currentShape.workspace_id,
-          data: currentShape.props,
-          visible: currentShape.visible,
-        },
-      });
-
-      updateShape.mutate({
-        id: targetShape.id,
-        data: {
-          name: targetShape.name,
-          type: targetShape.type,
-          order: currentShape.order,
-          layer_id: targetShape.layerId,
-          workspace_id: targetShape.workspace_id,
-          data: targetShape.props,
-          visible: targetShape.visible,
-        },
-      });
-    }
+  // Handlers para los botones de reordenamiento (una unidad)
+  const onBringForward = (e) => {
+    e.stopPropagation();
+    if (!isAtFront) handleMove("up");
+  };
+  const onSendBackward = (e) => {
+    e.stopPropagation();
+    if (!isAtBack) handleMove("down");
   };
 
   return (
     <Draggable
-      draggableId={`shape-${obj.id}`} // 👈 Asegúrate que sea string y único
+      draggableId={`shape-${obj.id}`} // debe ser string único
       isDragDisabled={!isEditMode || layerLocked || obj.locked}
       index={idx}
     >
@@ -209,9 +200,11 @@ export default function ShapeItem({
                 e.stopPropagation();
                 toggleShapeVisibility(obj.id);
               }}
+              title={obj.visible !== false ? "Ocultar" : "Mostrar"}
             >
               {obj.visible !== false ? <Eye size={15} /> : <EyeOff size={15} />}
             </button>
+
             {isEditMode && (
               <button
                 className="hover:text-blue-900 p-1 hover:bg-white/30 rounded-md transition"
@@ -221,6 +214,7 @@ export default function ShapeItem({
                 {obj.locked ? <Lock size={15} /> : <Unlock size={15} />}
               </button>
             )}
+
             <span
               className="text-xs truncate"
               onDoubleClick={
@@ -237,6 +231,7 @@ export default function ShapeItem({
               onTouchStart={
                 isEditMode
                   ? (e) => {
+                      // long-press para editar en móvil
                       let timeout = setTimeout(() => {
                         setEditingId(obj.id);
                         setEditingValue(
@@ -284,31 +279,27 @@ export default function ShapeItem({
               <button
                 className={classNames(
                   "ml-2 text-blue-300 hover:text-blue-900 p-1 hover:bg-white/30 rounded-md disabled:opacity-30 transition-colors",
-                  {
-                    "cursor-not-allowed": idx === 0,
-                  }
+                  { "cursor-not-allowed": isAtFront }
                 )}
-                title={idx === 0 ? "Ya está al frente" : "Traer al frente"}
+                title={isAtFront ? "Ya está al frente" : "Subir (una posición)"}
                 onClick={onBringForward}
-                disabled={idx === 0}
+                disabled={isAtFront}
               >
                 <ChevronUp size={16} />
               </button>
+
               <button
                 className={classNames(
                   "ml-1 text-blue-300 hover:text-blue-900 p-1 hover:bg-white/30 rounded-md disabled:opacity-30 transition-colors",
-                  {
-                    "cursor-not-allowed": idx === objects.length - 1,
-                  }
+                  { "cursor-not-allowed": isAtBack }
                 )}
-                title={
-                  idx === objects.length - 1 ? "Ya está atrás" : "Enviar atrás"
-                }
+                title={isAtBack ? "Ya está atrás" : "Bajar (una posición)"}
                 onClick={onSendBackward}
-                disabled={idx === objects.length - 1}
+                disabled={isAtBack}
               >
                 <ChevronDown size={16} />
               </button>
+
               <button
                 className="ml-2 text-red-400 hover:text-red-600 p-1 hover:bg-white/30 rounded-md"
                 title="Eliminar elemento"
